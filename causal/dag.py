@@ -1,75 +1,21 @@
-
-# import pandas as pd
-# from dowhy import CausalModel
-
-# data = pd.read_csv("data/mockretaildata.csv")
-
-# model = CausalModel(
-#     data=data,
-#     treatment="discount",
-#     outcome="purchase",
-#     graph="""
-#     digraph {
-#         age -> discount;
-#         age -> purchase;
-
-#         income -> discount;
-#         income -> purchase;
-
-#         previous_purchases -> discount;
-#         previous_purchases -> purchase;
-
-#         loyalty_score -> discount;
-#         loyalty_score -> purchase;
-
-#         discount -> purchase;
-#     }
-#     """
-# )
-
-# identified_estimand = model.identify_effect()
-
-# print(identified_estimand)
-
+import os
 import pandas as pd
-import dowhy
+import matplotlib.pyplot as plt
+import networkx as nx
 from dowhy import CausalModel
 
 
-# ============================================================
-# 1. Load Dataset
-# ============================================================
-
-DATA_PATH = "data/mockretaildata.csv"
+# Load dataset
+DATA_PATH = "data/mockretaildatacleaned.csv"
 
 df = pd.read_csv(DATA_PATH)
 
-print("=" * 60)
-print("DATASET INFORMATION")
-print("=" * 60)
 
-print(f"Rows: {df.shape[0]}")
-print(f"Columns: {df.shape[1]}")
-
-print("\nColumns:")
-print(df.columns.tolist())
-
-
-# ============================================================
-# 2. Define Causal Variables
-# ============================================================
-
-# Treatment:
-# Discount offered to the customer.
+# Causal variables
 TREATMENT = "discount"
-
-# Outcome:
-# Whether the customer purchased after the campaign.
 OUTCOME = "purchase"
+IDENTIFIER = "customer_id"
 
-# Confounders:
-# These variables influence both discount assignment
-# and customer purchase behavior.
 CONFOUNDERS = [
     "age",
     "income",
@@ -77,18 +23,20 @@ CONFOUNDERS = [
     "campaign_response",
     "customer_tenure_days",
     "channel",
-    "avg_basket_size",
+    "avg_basket_size"
 ]
 
-# Customer ID is only an identifier.
-# It should NOT be used as a causal variable.
-IDENTIFIER = "customer_id"
+
+# Dataset information
+print("\nDataset Information")
+print(f"Rows    : {df.shape[0]}")
+print(f"Columns : {df.shape[1]}")
+
+print("\nColumns:")
+print(list(df.columns))
 
 
-# ============================================================
-# 3. Validate Required Columns
-# ============================================================
-
+# Validate required columns
 required_columns = (
     [IDENTIFIER, TREATMENT, OUTCOME]
     + CONFOUNDERS
@@ -107,124 +55,24 @@ if missing_columns:
 
 print("\nAll required columns are present.")
 
-
-# ============================================================
-# 4. Display Causal Roles
-# ============================================================
-
-print("\n" + "=" * 60)
-print("CAUSAL VARIABLE ROLES")
-print("=" * 60)
-
-print(f"Treatment : {TREATMENT}")
+print(f"\nTreatment : {TREATMENT}")
 print(f"Outcome   : {OUTCOME}")
 print(f"Identifier: {IDENTIFIER}")
 
 print("\nConfounders:")
-
 for variable in CONFOUNDERS:
-    print(f"  - {variable}")
+    print(f"- {variable}")
 
 
-# ============================================================
-# 5. Check Missing Values
-# ============================================================
+# Treatment and outcome values
+print("\nDiscount values:")
+print(sorted(df[TREATMENT].unique()))
 
-print("\n" + "=" * 60)
-print("MISSING VALUE CHECK")
-print("=" * 60)
-
-missing_values = df[required_columns].isnull().sum()
-
-print(missing_values)
-
-print("\nRows containing missing values:")
-
-rows_with_missing = df[required_columns].isnull().any(axis=1).sum()
-
-print(rows_with_missing)
+print("\nPurchase values:")
+print(sorted(df[OUTCOME].unique()))
 
 
-# ============================================================
-# 6. Remove Missing Values for Week 1 Causal Analysis
-# ============================================================
-
-df_clean = df.dropna(
-    subset=[TREATMENT, OUTCOME] + CONFOUNDERS
-).copy()
-
-print("\n" + "=" * 60)
-print("CLEAN DATASET")
-print("=" * 60)
-
-print(f"Original rows : {len(df)}")
-print(f"Clean rows    : {len(df_clean)}")
-print(f"Removed rows  : {len(df) - len(df_clean)}")
-
-
-# ============================================================
-# 7. Check Treatment Values
-# ============================================================
-
-print("\n" + "=" * 60)
-print("TREATMENT CHECK")
-print("=" * 60)
-
-print("Discount values:")
-
-print(
-    sorted(
-        df_clean[TREATMENT].unique()
-    )
-)
-
-
-# ============================================================
-# 8. Check Outcome Values
-# ============================================================
-
-print("\n" + "=" * 60)
-print("OUTCOME CHECK")
-print("=" * 60)
-
-print("Purchase values:")
-
-print(
-    sorted(
-        df_clean[OUTCOME].unique()
-    )
-)
-
-
-# ============================================================
-# 9. Define the Causal DAG
-# ============================================================
-
-# Causal structure:
-#
-# Confounders ───────► Discount
-#      │
-#      └─────────────► Purchase
-#
-# Discount ──────────► Purchase
-#
-#
-# Therefore:
-#
-# Confounders affect BOTH:
-#   1. Discount assignment
-#   2. Purchase
-#
-# This creates confounding.
-#
-# The main causal relationship we want to estimate is:
-#
-#              Discount
-#                  │
-#                  ▼
-#              Purchase
-
-
+# Define causal DAG
 graph = """
 digraph {
 
@@ -254,25 +102,19 @@ digraph {
 """
 
 
-# ============================================================
-# 10. Create DoWhy Causal Model
-# ============================================================
-
+# Create DoWhy causal model
 model = CausalModel(
-    data=df_clean,
+    data=df,
     treatment=TREATMENT,
     outcome=OUTCOME,
-    graph=graph,
+    graph=graph
 )
 
+print("\nDAG successfully created and loaded into DoWhy.")
 
-# ============================================================
-# 11. Identify the Causal Effect
-# ============================================================
 
-print("\n" + "=" * 60)
-print("IDENTIFYING CAUSAL EFFECT")
-print("=" * 60)
+# Identify causal effect
+print("\nIdentifying causal effect...")
 
 identified_estimand = model.identify_effect(
     proceed_when_unidentifiable=True
@@ -281,29 +123,80 @@ identified_estimand = model.identify_effect(
 print(identified_estimand)
 
 
-# ============================================================
-# 12. Final Summary
-# ============================================================
+# Create DAG for visualization
+G = nx.DiGraph()
 
-print("\n" + "=" * 60)
-print("WEEK 1 DAG SUMMARY")
-print("=" * 60)
+for confounder in CONFOUNDERS:
+    G.add_edge(confounder, TREATMENT)
+    G.add_edge(confounder, OUTCOME)
 
-print("Business Question:")
+G.add_edge(TREATMENT, OUTCOME)
+
+
+# DAG layout
+pos = {
+    "age": (-3, 3),
+    "income": (-2, 3),
+    "previous_purchases": (-1, 3),
+    "campaign_response": (0, 3),
+    "customer_tenure_days": (1, 3),
+    "channel": (2, 3),
+    "avg_basket_size": (3, 3),
+
+    "discount": (0, 1),
+    "purchase": (0, -1)
+}
+
+
+# Draw DAG
+plt.figure(figsize=(14, 8))
+
+nx.draw_networkx(
+    G,
+    pos=pos,
+    with_labels=True,
+    node_size=4000,
+    node_color="white",
+    edgecolors="black",
+    arrows=True,
+    arrowsize=20,
+    font_size=9,
+    font_weight="bold",
+    linewidths=1.2
+)
+
+plt.title(
+    "EconoCausal - Causal DAG",
+    fontsize=16,
+    fontweight="bold"
+)
+
+plt.axis("off")
+plt.tight_layout()
+
+
+# Save DAG as JPG
+output_path = os.path.join(
+    os.path.dirname(__file__),
+    "dag_graph.jpg"
+)
+
+plt.savefig(
+    output_path,
+    format="jpg",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+print(f"\nDAG graph saved successfully:")
+print(output_path)
+
+plt.show()
+
+
+# Business question
+print("\nBusiness Question:")
 print(
     "What is the causal effect of giving a customer "
     "a discount on their probability of purchasing?"
 )
-
-print("\nTreatment:")
-print("discount")
-
-print("\nOutcome:")
-print("purchase")
-
-print("\nConfounders:")
-
-for variable in CONFOUNDERS:
-    print(f"- {variable}")
-
-print("\nDAG successfully created and loaded into DoWhy.")
