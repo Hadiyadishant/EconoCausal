@@ -7,8 +7,8 @@ EconoCausal project.
 
 The purpose of this module is to define the causal relationship between:
 
-- Treatment: `discount`
-- Outcome: `purchase`
+- Treatment: discount
+- Outcome: purchase
 - Confounders: customer characteristics that influence both treatment and outcome
 
 The causal graph is created using Microsoft's DoWhy library.
@@ -20,8 +20,8 @@ image for documentation and review.
 
 ## Business Question
 
-> What is the causal effect of giving a customer a discount on their
-> probability of purchasing?
+What is the causal effect of giving a customer a discount on their
+probability of purchasing?
 
 The goal is not simply to determine whether customers who receive discounts
 purchase more.
