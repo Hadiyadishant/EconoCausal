@@ -1,0 +1,11 @@
+column,role,notes
+customer_id,Identifier,"Not used as a model input, kept for merging results"
+age,Confounder (X),Customer age in years
+income,Confounder (X),"Customer income, float"
+previous_purchases,Confounder (X),Count of prior purchases
+campaign_response,Confounder (X),Historical campaign response rate/score
+customer_tenure_days,Confounder (X),Days since customer acquired
+avg_basket_size,Confounder (X),"Average basket size, float"
+channel,W,Categorical: in_store / online — needs encoding before modeling
+discount,Treatment (T),"Discount level: 0,5,10,15,20,25,30 — treatment representation (binary vs multi-level) to be finalized by Dishant"
+purchase,Outcome (Y),Binary purchase indicator
