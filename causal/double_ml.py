@@ -1,13 +1,16 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from econml.dml import CausalForestDML
 
+# 1. LOAD DATA
 
-# Load data
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
 
 DATA_PATH = os.path.join(
     BASE_DIR,
@@ -17,52 +20,80 @@ DATA_PATH = os.path.join(
 
 df = pd.read_csv(DATA_PATH)
 
+print("Dataset loaded successfully.")
+print("Dataset shape:", df.shape)
 
-# Treatment
+
+# 2. DEFINE TREATMENT (T)
+
+# Binary treatment:
 # 0 = No discount
-# 1 = Discount
+# 1 = Any discount
+
 T = (df["discount"] > 0).astype(int)
 
+print("\nTreatment Distribution:")
+print(T.value_counts())
 
-# Outcome
+
+# 3. DEFINE OUTCOME (Y)
+
+# Binary purchase outcome
 Y = df["purchase"]
 
 
-# Features
-features = [
+# 4. DEFINE CONFOUNDERS (X)
+
+# X = Customer-level confounders
+X_features = [
     "age",
     "income",
     "previous_purchases",
     "campaign_response",
     "customer_tenure_days",
-    "channel",
     "avg_basket_size"
 ]
 
-X = df[features].copy()
+X = df[X_features].copy()
 
+print("\nX Shape:", X.shape)
+
+
+# 5. DEFINE ADDITIONAL CONTROL VARIABLES (W)
+
+# W = Channel
+# Categorical variable:
+# in_store / online
+
+W = df[["channel"]].copy()
 
 # Convert categorical channel to numeric
-X = pd.get_dummies(
-    X,
+W = pd.get_dummies(
+    W,
     columns=["channel"],
     drop_first=True
 )
 
+print("W Shape:", W.shape)
 
-# Random Forest models
+
+# 6. DEFINE MACHINE LEARNING MODELS
+
+# Model for predicting the outcome Y
 model_y = RandomForestRegressor(
     n_estimators=200,
     random_state=42
 )
 
+# Model for predicting the treatment T
 model_t = RandomForestClassifier(
     n_estimators=200,
     random_state=42
 )
 
 
-# EconML Double ML model
+# 7. CREATE CAUSAL FOREST DML MODEL
+
 dml_model = CausalForestDML(
     model_y=model_y,
     model_t=model_t,
@@ -71,23 +102,32 @@ dml_model = CausalForestDML(
 )
 
 
-# Train model
-print("Training Double ML model...")
+# 8. TRAIN CAUSAL FOREST DML MODEL
+
+print("\nTraining Causal Forest DML model...")
 
 dml_model.fit(
     Y,
     T,
-    X=X
+    X=X,
+    W=W
 )
 
-print("Double ML training completed successfully.")
+print("Causal Forest DML training completed successfully.")
 
 
-# Estimate Individual Treatment Effect
+# 9. ESTIMATE INDIVIDUAL TREATMENT EFFECT (ITE)
+
 ite = dml_model.effect(X)
 
+print("\nITE estimated successfully.")
 
-print("\nITE Validation")
+
+# 10. ITE VALIDATION
+
+print("\n" + "=" * 50)
+print("ITE VALIDATION")
+print("=" * 50)
 
 print("Number of ITE values:", len(ite))
 print("Missing ITE values:", np.isnan(ite).sum())
@@ -97,10 +137,135 @@ print("Std ITE:", ite.std())
 print("Minimum ITE:", ite.min())
 print("Maximum ITE:", ite.max())
 
-print("\nPositive ITE customers:", (ite > 0).sum())
+
+# Count ITE categories
+positive_ite = (ite > 0).sum()
+negative_ite = (ite < 0).sum()
+zero_ite = (ite == 0).sum()
+
+print("\nPositive ITE customers:", positive_ite)
+print("Negative ITE customers:", negative_ite)
+print("Zero ITE customers:", zero_ite)
+
 print(
     "Positive ITE percentage:",
     (ite > 0).mean() * 100
 )
 
-print("\nITE estimated successfully.")
+print(
+    "Negative ITE percentage:",
+    (ite < 0).mean() * 100
+)
+
+
+# 11. CALCULATE AVERAGE TREATMENT EFFECT (ATE)
+
+ate = dml_model.ate(X)
+
+print("\n" + "=" * 50)
+print("AVERAGE TREATMENT EFFECT (ATE)")
+print("=" * 50)
+
+print("Average Treatment Effect:", ate)
+
+
+# 12. CREATE ITE RESULTS DATAFRAME
+
+results = df.copy()
+
+results["treatment"] = T
+results["ITE"] = ite
+
+
+# 13. CUSTOMER SEGMENTATION
+
+results["segment"] = np.select(
+    [
+        results["ITE"] > 0.10,
+        results["ITE"] > 0
+    ],
+    [
+        "Highly Persuadable",
+        "Persuadable"
+    ],
+    default="Not Persuadable"
+)
+
+
+# 14. CUSTOMER SEGMENT ANALYSIS
+
+print("\n" + "=" * 50)
+print("CUSTOMER SEGMENTS")
+print("=" * 50)
+
+print(
+    results["segment"].value_counts()
+)
+
+
+# 15. TOP CUSTOMERS BY ITE
+
+top_customers = results.sort_values(
+    "ITE",
+    ascending=False
+)
+
+print("\n" + "=" * 50)
+print("TOP 20 CUSTOMERS BY ITE")
+print("=" * 50)
+
+print(
+    top_customers[
+        [
+            "age",
+            "income",
+            "previous_purchases",
+            "discount",
+            "purchase",
+            "ITE",
+            "segment"
+        ]
+    ].head(20)
+)
+
+
+# 16. ITE DISTRIBUTION
+
+plt.figure(figsize=(8, 5))
+
+plt.hist(
+    ite,
+    bins=30
+)
+
+plt.axvline(
+    0,
+    linestyle="--"
+)
+
+plt.xlabel("Individual Treatment Effect")
+plt.ylabel("Number of Customers")
+plt.title("Distribution of Individual Treatment Effects")
+
+plt.show()
+
+
+# 17. SAVE ITE RESULTS
+
+OUTPUT_PATH = os.path.join(
+    BASE_DIR,
+    "data",
+    "ite_results.csv"
+)
+
+results.to_csv(
+    OUTPUT_PATH,
+    index=False
+)
+
+print("\n" + "=" * 50)
+print("RESULT SAVING")
+print("=" * 50)
+
+print("ITE results saved successfully.")
+print("Output:", OUTPUT_PATH)
