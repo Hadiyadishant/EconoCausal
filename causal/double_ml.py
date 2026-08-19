@@ -14,8 +14,8 @@ BASE_DIR = os.path.dirname(
 
 DATA_PATH = os.path.join(
     BASE_DIR,
-    "data",
-    "mockretaildatacleaned.csv"
+    "notebooks",
+    "dml_ready_data.csv"
 )
 
 df = pd.read_csv(DATA_PATH)
@@ -65,12 +65,12 @@ print("\nX Shape:", X.shape)
 # Categorical variable:
 # in_store / online
 
-W = df[["channel"]].copy()
+W = df[["channel_online"]].copy()
 
 # Convert categorical channel to numeric
 W = pd.get_dummies(
     W,
-    columns=["channel"],
+    columns=["channel_online"],
     drop_first=True
 )
 
@@ -247,7 +247,25 @@ plt.xlabel("Individual Treatment Effect")
 plt.ylabel("Number of Customers")
 plt.title("Distribution of Individual Treatment Effects")
 
+# Save graph as JPG
+GRAPH_PATH = os.path.join(
+    BASE_DIR,
+    "data",
+    "ite_distribution.jpg"
+)
+
+plt.savefig(
+    GRAPH_PATH,
+    format="jpg",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+print("\nITE distribution graph saved successfully.")
+print("Graph:", GRAPH_PATH)
 plt.show()
+
+plt.close()
 
 
 # 17. SAVE ITE RESULTS
@@ -255,7 +273,7 @@ plt.show()
 OUTPUT_PATH = os.path.join(
     BASE_DIR,
     "data",
-    "ite_results.csv"
+    "ite_score.csv"
 )
 
 results.to_csv(
