@@ -1,85 +1,212 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import {
+  getBudget,
+  saveBudget,
+} from "../services/storage";
+
 import "./BudgetSettings.css";
 
-export default function BudgetSettings() {
-  const [budget, setBudget] = useState(5000);
-  const [maxDiscount, setMaxDiscount] = useState(30);
-  const [saved, setSaved] = useState(false);
+const BudgetSettings = () => {
+  const existingBudget = getBudget();
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    setSaved(true);
+  const [budget, setBudget] = useState(
+    existingBudget?.totalBudget ?? ""
+  );
+
+  const [cost, setCost] = useState(
+    existingBudget?.costPerCustomer ?? ""
+  );
+
+  const [maxCustomers, setMaxCustomers] =
+    useState(
+      existingBudget?.maxCustomers ?? ""
+    );
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const handleSave = () => {
+    setMessage("");
+    setError("");
+
+    const totalBudget = Number(budget);
+    const costPerCustomer = Number(cost);
+    const maximumCustomers =
+      Number(maxCustomers);
+
+    if (
+      !Number.isFinite(totalBudget) ||
+      !Number.isFinite(costPerCustomer) ||
+      !Number.isFinite(maximumCustomers)
+    ) {
+      setError(
+        "Please enter valid numbers."
+      );
+      return;
+    }
+
+    if (
+      totalBudget <= 0 ||
+      costPerCustomer <= 0 ||
+      maximumCustomers <= 0
+    ) {
+      setError(
+        "All values must be greater than zero."
+      );
+      return;
+    }
+
+    const affordableCustomers =
+      Math.floor(
+        totalBudget / costPerCustomer
+      );
+
+    const allowedCustomers =
+      Math.min(
+        affordableCustomers,
+        maximumCustomers
+      );
+
+    saveBudget({
+      totalBudget,
+      costPerCustomer,
+      maxCustomers: maximumCustomers,
+      affordableCustomers,
+      allowedCustomers,
+      updatedAt:
+        new Date().toISOString(),
+    });
+
+    setMessage(
+      `Budget saved successfully. Maximum targetable customers: ${allowedCustomers}.`
+    );
   };
 
   return (
-    <section className="page-section">
-      <div className="page-header">
-        <div>
-          <span className="eyebrow">CAMPAIGN CONFIGURATION</span>
-          <h1>Budget Settings</h1>
-          <p>Define campaign constraints before treatment allocation.</p>
+    <div className="budget-page">
+      <div className="budget-container">
+
+        <div className="page-header">
+          <span className="page-label">
+            BUDGET CONTROL
+          </span>
+
+          <h1>
+            Budget Settings
+          </h1>
+
+          <p>
+            Define campaign budget constraints
+            used by the causal targeting workflow.
+          </p>
         </div>
-      </div>
 
-      <div className="settings-card">
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="budget">Campaign Budget</label>
-            <div className="input-group">
-              <span>$</span>
+        <div className="budget-card">
+
+          <div className="form-group">
+            <label>
+              Total Marketing Budget
+            </label>
+
+            <div className="input-wrapper">
+              <span>₹</span>
+
               <input
-                id="budget"
                 type="number"
                 min="0"
-                step="100"
+                placeholder="50000"
                 value={budget}
-                onChange={(e) => {
-                  setBudget(e.target.value);
-                  setSaved(false);
-                }}
+                onChange={(e) =>
+                  setBudget(e.target.value)
+                }
               />
             </div>
-            <small>Maximum amount available for the campaign.</small>
+
+            <small>
+              Example: ₹50,000
+            </small>
           </div>
 
-          <div className="field">
-            <label htmlFor="discount">Maximum Discount</label>
-            <div className="input-group">
+
+          <div className="form-group">
+            <label>
+              Cost per Customer
+            </label>
+
+            <div className="input-wrapper">
+              <span>₹</span>
+
               <input
-                id="discount"
                 type="number"
                 min="0"
-                max="30"
-                step="5"
-                value={maxDiscount}
-                onChange={(e) => {
-                  setMaxDiscount(e.target.value);
-                  setSaved(false);
-                }}
+                placeholder="100"
+                value={cost}
+                onChange={(e) =>
+                  setCost(e.target.value)
+                }
               />
-              <span>%</span>
             </div>
-            <small>Maximum discount allowed per customer.</small>
+
+            <small>
+              Estimated campaign cost per customer
+            </small>
           </div>
 
-          <div className="settings-summary">
-            <div>
-              <span>Campaign budget</span>
-              <strong>${Number(budget || 0).toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>Maximum discount</span>
-              <strong>{maxDiscount}%</strong>
-            </div>
+
+          <div className="form-group">
+            <label>
+              Maximum Customers
+            </label>
+
+            <input
+              className="normal-input"
+              type="number"
+              min="1"
+              placeholder="500"
+              value={maxCustomers}
+              onChange={(e) =>
+                setMaxCustomers(
+                  e.target.value
+                )
+              }
+            />
+
+            <small>
+              Maximum number of customers
+              to target
+            </small>
           </div>
 
-          <button className="save-button" type="submit">
-            Save Settings
+
+          <button
+            className="primary-button"
+            onClick={handleSave}
+          >
+            Save Budget Settings
           </button>
 
-          {saved && <p className="saved-message">✓ Settings saved successfully.</p>}
-        </form>
+
+          {error && (
+            <div className="budget-error">
+              {error}
+            </div>
+          )}
+
+
+          {message && (
+            <div className="budget-message">
+              ✓ {message}
+            </div>
+          )}
+
+        </div>
+
       </div>
-    </section>
+    </div>
   );
-}
+};
+
+export default BudgetSettings;
