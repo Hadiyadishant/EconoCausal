@@ -7,13 +7,25 @@ const Insights = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // -----------------------------
+  // FILTERS
+  // -----------------------------
+
+  const [targetingFilter, setTargetingFilter] = useState("100");
+
+  const [decileFilter, setDecileFilter] = useState("all");
+
+  // -----------------------------
+  // LOAD QINI DATA
+  // -----------------------------
+
   useEffect(() => {
     const loadQiniData = async () => {
       try {
         setLoading(true);
         setError("");
 
-        const response = await fetch("/qini_curve_data.json");
+        const response = await fetch("./data/qini_curve_data.json");
 
         if (!response.ok) {
           throw new Error(
@@ -24,15 +36,6 @@ const Insights = () => {
         const data = await response.json();
 
         console.log("Qini data loaded:", data);
-
-        /*
-         * Your actual JSON structure:
-         *
-         * fractions
-         * qini_values
-         * random_baseline
-         * uplift_by_decile
-         */
 
         if (
           !Array.isArray(data.fractions) ||
@@ -69,9 +72,10 @@ const Insights = () => {
     loadQiniData();
   }, []);
 
-  /*
-   * Calculate useful business metrics
-   */
+  // -----------------------------
+  // FILTERED ANALYSIS
+  // -----------------------------
+
   const analysis = useMemo(() => {
     if (!qiniData) return null;
 
@@ -79,31 +83,52 @@ const Insights = () => {
     const qiniValues = qiniData.qini_values;
     const randomBaseline = qiniData.random_baseline;
 
-    /*
-     * Maximum Qini value
-     */
-    const maxQini = Math.max(...qiniValues);
+    // -----------------------------
+    // TARGETING FILTER
+    // -----------------------------
 
-    /*
-     * Index where Qini is maximum
-     */
-    const maxQiniIndex = qiniValues.indexOf(maxQini);
+    const maxTargeting = Number(targetingFilter) / 100;
 
-    /*
-     * Best targeting percentage
-     */
+    const filteredIndexes = fractions
+      .map((fraction, index) => ({
+        fraction,
+        index,
+      }))
+      .filter(
+        ({ fraction }) =>
+          fraction <= maxTargeting
+      );
+
+    const filteredFractions = filteredIndexes.map(
+      ({ fraction }) => fraction
+    );
+
+    const filteredQiniValues = filteredIndexes.map(
+      ({ index }) => qiniValues[index]
+    );
+
+    const filteredRandomBaseline =
+      filteredIndexes.map(
+        ({ index }) => randomBaseline[index]
+      );
+
+    // -----------------------------
+    // MAXIMUM QINI
+    // -----------------------------
+
+    const maxQini = Math.max(
+      ...filteredQiniValues
+    );
+
+    const maxQiniIndex =
+      filteredQiniValues.indexOf(maxQini);
+
     const bestTargeting =
-      fractions[maxQiniIndex] * 100;
+      filteredFractions[maxQiniIndex] * 100;
 
-    /*
-     * Random baseline at best targeting point
-     */
     const randomAtBest =
-      randomBaseline[maxQiniIndex];
+      filteredRandomBaseline[maxQiniIndex];
 
-    /*
-     * Improvement over random baseline
-     */
     const improvement =
       randomAtBest !== 0
         ? ((maxQini - randomAtBest) /
@@ -111,18 +136,29 @@ const Insights = () => {
           100
         : 0;
 
-    /*
-     * Uplift by decile
-     */
+    // -----------------------------
+    // UPLIFT DATA
+    // -----------------------------
+
     const upliftByDecile =
       qiniData.uplift_by_decile || {};
 
-    /*
-     * Find highest uplift decile
-     */
-    const decileEntries = Object.entries(
-      upliftByDecile
-    );
+    let decileEntries =
+      Object.entries(upliftByDecile);
+
+    // Apply decile filter
+    if (decileFilter !== "all") {
+      decileEntries =
+        decileEntries.filter(
+          ([decile]) =>
+            Number(decile) + 1 ===
+            Number(decileFilter)
+        );
+    }
+
+    // -----------------------------
+    // BEST DECILE
+    // -----------------------------
 
     let bestDecile = null;
 
@@ -137,21 +173,28 @@ const Insights = () => {
     }
 
     return {
-      fractions,
-      qiniValues,
-      randomBaseline,
-      upliftByDecile,
+      fractions: filteredFractions,
+      qiniValues: filteredQiniValues,
+      randomBaseline: filteredRandomBaseline,
+
+      upliftEntries: decileEntries,
+
       maxQini,
       bestTargeting,
       randomAtBest,
       improvement,
       bestDecile,
     };
-  }, [qiniData]);
+  }, [
+    qiniData,
+    targetingFilter,
+    decileFilter,
+  ]);
 
-  /*
-   * Loading state
-   */
+  // -----------------------------
+  // LOADING STATE
+  // -----------------------------
+
   if (loading) {
     return (
       <div className="insights-page">
@@ -181,9 +224,10 @@ const Insights = () => {
     );
   }
 
-  /*
-   * Error state
-   */
+  // -----------------------------
+  // ERROR STATE
+  // -----------------------------
+
   if (error) {
     return (
       <div className="insights-page">
@@ -219,7 +263,10 @@ const Insights = () => {
             </p>
 
             <div className="error-help">
-              <strong>Expected JSON structure:</strong>
+
+              <strong>
+                Expected JSON structure:
+              </strong>
 
               <pre>
 {`{
@@ -237,6 +284,7 @@ const Insights = () => {
               <code>
                 frontend/public/qini_curve_data.json
               </code>
+
             </div>
 
           </div>
@@ -246,9 +294,10 @@ const Insights = () => {
     );
   }
 
-  /*
-   * Safety check
-   */
+  // -----------------------------
+  // SAFETY CHECK
+  // -----------------------------
+
   if (!analysis) {
     return null;
   }
@@ -265,6 +314,7 @@ const Insights = () => {
         <div className="page-header">
 
           <div>
+
             <span className="page-label">
               CAUSAL ANALYSIS
             </span>
@@ -277,6 +327,7 @@ const Insights = () => {
               Double Machine Learning based
               treatment-effect and uplift analysis.
             </p>
+
           </div>
 
           <div className="status-badge">
@@ -288,12 +339,152 @@ const Insights = () => {
 
 
         {/* =========================================
+            FILTERS
+        ========================================== */}
+
+        <section className="insights-filter-card">
+
+          <div className="filter-heading">
+
+            <div>
+
+              <span className="chart-label">
+                ANALYSIS FILTERS
+              </span>
+
+              <h2>
+                Filter Causal Results
+              </h2>
+
+              <p>
+                Adjust the targeting range and
+                customer uplift segment.
+              </p>
+
+            </div>
+
+            <button
+              className="reset-filter-button"
+              onClick={() => {
+                setTargetingFilter("100");
+                setDecileFilter("all");
+              }}
+            >
+              Reset Filters
+            </button>
+
+          </div>
+
+
+          <div className="filter-grid">
+
+            {/* Targeting Filter */}
+
+            <div className="filter-group">
+
+              <label htmlFor="targeting-filter">
+                Maximum Targeting Range
+              </label>
+
+              <select
+                id="targeting-filter"
+                value={targetingFilter}
+                onChange={(e) =>
+                  setTargetingFilter(e.target.value)
+                }
+              >
+
+                <option value="100">
+                  All Customers
+                </option>
+
+                <option value="10">
+                  Top 10%
+                </option>
+
+                <option value="20">
+                  Top 20%
+                </option>
+
+                <option value="30">
+                  Top 30%
+                </option>
+
+                <option value="40">
+                  Top 40%
+                </option>
+
+                <option value="50">
+                  Top 50%
+                </option>
+
+                <option value="60">
+                  Top 60%
+                </option>
+
+                <option value="70">
+                  Top 70%
+                </option>
+
+                <option value="80">
+                  Top 80%
+                </option>
+
+                <option value="90">
+                  Top 90%
+                </option>
+
+              </select>
+
+            </div>
+
+
+            {/* Decile Filter */}
+
+            <div className="filter-group">
+
+              <label htmlFor="decile-filter">
+                Customer Uplift Segment
+              </label>
+
+              <select
+                id="decile-filter"
+                value={decileFilter}
+                onChange={(e) =>
+                  setDecileFilter(e.target.value)
+                }
+              >
+
+                <option value="all">
+                  All Deciles
+                </option>
+
+                {Array.from(
+                  { length: 10 },
+                  (_, index) => (
+                    <option
+                      key={index + 1}
+                      value={index + 1}
+                    >
+                      Decile {index + 1}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* =========================================
             SUMMARY CARDS
         ========================================== */}
 
         <div className="insight-grid">
-
-          {/* Maximum Qini */}
 
           <div className="insight-card">
 
@@ -312,8 +503,6 @@ const Insights = () => {
           </div>
 
 
-          {/* Best Targeting */}
-
           <div className="insight-card">
 
             <span className="card-label">
@@ -330,8 +519,6 @@ const Insights = () => {
 
           </div>
 
-
-          {/* Data Points */}
 
           <div className="insight-card">
 
@@ -350,8 +537,6 @@ const Insights = () => {
           </div>
 
 
-          {/* Random Comparison */}
-
           <div className="insight-card">
 
             <span className="card-label">
@@ -368,8 +553,6 @@ const Insights = () => {
 
           </div>
 
-
-          {/* Improvement */}
 
           <div className="insight-card">
 
@@ -388,8 +571,6 @@ const Insights = () => {
           </div>
 
 
-          {/* Best Decile */}
-
           <div className="insight-card">
 
             <span className="card-label">
@@ -397,18 +578,25 @@ const Insights = () => {
             </span>
 
             <strong>
+
               {analysis.bestDecile
-                ? `D${Number(analysis.bestDecile[0]) + 1}`
+                ? `D${Number(
+                    analysis.bestDecile[0]
+                  ) + 1}`
                 : "N/A"}
+
             </strong>
 
             <small>
+
               {analysis.bestDecile
                 ? `${(
-                    Number(analysis.bestDecile[1]) *
-                    100
+                    Number(
+                      analysis.bestDecile[1]
+                    ) * 100
                   ).toFixed(2)}% uplift`
                 : "No decile data"}
+
             </small>
 
           </div>
@@ -425,6 +613,7 @@ const Insights = () => {
           <div className="chart-header">
 
             <div>
+
               <span className="chart-label">
                 MODEL PERFORMANCE
               </span>
@@ -437,12 +626,14 @@ const Insights = () => {
                 Compares the causal model against
                 random customer targeting.
               </p>
+
             </div>
 
           </div>
 
 
           <Plot
+
             data={[
               {
                 x: analysis.fractions.map(
@@ -487,6 +678,7 @@ const Insights = () => {
             ]}
 
             layout={{
+
               autosize: true,
 
               xaxis: {
@@ -523,6 +715,7 @@ const Insights = () => {
                 family:
                   "Inter, Arial, sans-serif",
               },
+
             }}
 
             useResizeHandler
@@ -536,6 +729,7 @@ const Insights = () => {
               responsive: true,
               displaylogo: false,
             }}
+
           />
 
         </section>
@@ -550,6 +744,7 @@ const Insights = () => {
           <div className="chart-header">
 
             <div>
+
               <span className="chart-label">
                 CUSTOMER SEGMENTATION
               </span>
@@ -562,26 +757,25 @@ const Insights = () => {
                 Estimated treatment uplift for each
                 customer segment ranked by causal effect.
               </p>
+
             </div>
 
           </div>
 
 
           <Plot
+
             data={[
               {
-                x: Object.keys(
-                  analysis.upliftByDecile
-                ).map(
-                  (decile) =>
+
+                x: analysis.upliftEntries.map(
+                  ([decile]) =>
                     `D${Number(decile) + 1}`
                 ),
 
-                y: Object.values(
-                  analysis.upliftByDecile
-                ).map(
-                  (value) =>
-                    value * 100
+                y: analysis.upliftEntries.map(
+                  ([, value]) =>
+                    Number(value) * 100
                 ),
 
                 type: "bar",
@@ -595,6 +789,7 @@ const Insights = () => {
             ]}
 
             layout={{
+
               autosize: true,
 
               xaxis: {
@@ -624,6 +819,7 @@ const Insights = () => {
                 family:
                   "Inter, Arial, sans-serif",
               },
+
             }}
 
             useResizeHandler
@@ -637,6 +833,7 @@ const Insights = () => {
               responsive: true,
               displaylogo: false,
             }}
+
           />
 
         </section>
@@ -662,19 +859,23 @@ const Insights = () => {
 
 
           <p>
+
             The Double Machine Learning model
             estimates the causal effect of the
             campaign treatment on customer outcomes
             while accounting for observed customer
             characteristics.
+
           </p>
 
 
           <p>
+
             The Qini curve measures how effectively
             the model ranks customers according to
             their expected incremental treatment
             benefit.
+
           </p>
 
 
@@ -685,14 +886,16 @@ const Insights = () => {
             </strong>
 
             <p>
-              The highest Qini value in the supplied
-              results occurs when approximately{" "}
+
+              The highest Qini value in the selected
+              range occurs when approximately{" "}
 
               <strong>
                 {analysis.bestTargeting.toFixed(1)}%
               </strong>{" "}
 
               of customers are targeted.
+
             </p>
 
           </div>
@@ -705,9 +908,11 @@ const Insights = () => {
             </strong>
 
             <p>
+
               The strongest customer segment is{" "}
 
               <strong>
+
                 {analysis.bestDecile
                   ? `Decile ${
                       Number(
@@ -715,6 +920,7 @@ const Insights = () => {
                       ) + 1
                     }`
                   : "not available"}
+
               </strong>
 
               {analysis.bestDecile &&
@@ -723,6 +929,7 @@ const Insights = () => {
                     analysis.bestDecile[1]
                   ) * 100
                 ).toFixed(2)}%.`}
+
             </p>
 
           </div>
@@ -735,12 +942,14 @@ const Insights = () => {
             </strong>
 
             <p>
+
               A positive estimated uplift means
               the treatment is predicted to provide
               additional benefit for that customer
               segment. Negative uplift suggests that
               targeting that segment may be less
               beneficial.
+
             </p>
 
           </div>
