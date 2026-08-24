@@ -24,7 +24,8 @@ function Dashboard() {
         </div>
 
         <div className="dashboard-grid">
-
+          
+          
           <button
             className="dashboard-card"
             onClick={() => navigate("/upload")}
@@ -84,6 +85,28 @@ function Dashboard() {
 
             <span className="card-link">
               View Insights →
+            </span>
+          </button>
+
+          <button
+            className="dashboard-card"
+            onClick={() => navigate("/prescription")}
+          >
+            <span className="card-number">
+              04
+            </span>
+
+            <h2>
+              Final Prescription
+            </h2>
+
+            <p>
+              View the mathematically optimal discount
+              assigned to each customer.
+            </p>
+
+            <span className="card-link">
+              View Allocation Matrix →
             </span>
           </button>
 
