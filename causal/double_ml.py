@@ -4,7 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 from econml.dml import CausalForestDML
+
+try:
+    from sklearn.metrics import root_mean_squared_error
+    HAS_RMSE_FUNC = True
+except ImportError:
+    from sklearn.metrics import mean_squared_error
+    HAS_RMSE_FUNC = False
+
 
 # 1. LOAD DATA
 
@@ -92,6 +102,55 @@ model_t = RandomForestClassifier(
 )
 
 
+# 6B. NUISANCE MODEL DIAGNOSTICS
+
+# These checks are separate from the final CausalForestDML fit below.
+# They exist only to sanity-check that the Y-model and T-model are
+# reasonably good BEFORE trusting the causal (ITE) estimates that
+# depend on them. This is not the final project output.
+
+print("\n" + "=" * 50)
+print("NUISANCE MODEL DIAGNOSTICS")
+print("=" * 50)
+
+XW = pd.concat([X, W], axis=1)
+
+XW_train, XW_test, Y_train, Y_test, T_train, T_test = train_test_split(
+    XW, Y, T, test_size=0.2, random_state=42
+)
+
+# Outcome model diagnostic (Random Forest Regressor)
+diag_model_y = RandomForestRegressor(
+    n_estimators=200,
+    random_state=42
+)
+diag_model_y.fit(XW_train, Y_train)
+y_pred = diag_model_y.predict(XW_test)
+
+if HAS_RMSE_FUNC:
+    rmse = root_mean_squared_error(Y_test, y_pred)
+else:
+    rmse = mean_squared_error(Y_test, y_pred, squared=False)
+
+print("Y-model RMSE (held-out test set):", rmse)
+
+# Treatment model diagnostic (Random Forest Classifier)
+diag_model_t = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42
+)
+diag_model_t.fit(XW_train, T_train)
+t_pred = diag_model_t.predict(XW_test)
+t_accuracy = accuracy_score(T_test, t_pred)
+
+print("T-model Accuracy (held-out test set):", t_accuracy)
+
+if rmse > 0.4:
+    print("WARNING: Y-model RMSE looks high — review features/model before trusting ITE.")
+if t_accuracy < 0.55:
+    print("WARNING: T-model accuracy is close to random — review features/model before trusting ITE.")
+
+
 # 7. CREATE CAUSAL FOREST DML MODEL
 
 dml_model = CausalForestDML(
@@ -115,12 +174,24 @@ dml_model.fit(
 
 print("Causal Forest DML training completed successfully.")
 
-
 # 9. ESTIMATE INDIVIDUAL TREATMENT EFFECT (ITE)
 
 ite = dml_model.effect(X)
 
 print("\nITE estimated successfully.")
+
+
+# 9B. ITE CONFIDENCE INTERVALS
+
+# Point estimates alone don't show how confident the model is.
+# These bounds show whether the effect for each customer is
+# reliably different from zero, or could just be noise.
+
+ite_lower, ite_upper = dml_model.effect_interval(X, alpha=0.05)
+
+print("\n95% Confidence Interval — sample (first 5 customers):")
+for i in range(5):
+    print(f"  Customer {i}: ITE = {ite[i]:.4f}  [{ite_lower[i]:.4f}, {ite_upper[i]:.4f}]")
 
 
 # 10. ITE VALIDATION
@@ -168,13 +239,15 @@ print("=" * 50)
 
 print("Average Treatment Effect:", ate)
 
-
 # 12. CREATE ITE RESULTS DATAFRAME
+
 
 results = df.copy()
 
 results["treatment"] = T
 results["ITE"] = ite
+results["ITE_lower"] = ite_lower
+results["ITE_upper"] = ite_upper
 
 
 # 13. CUSTOMER SEGMENTATION
@@ -223,6 +296,8 @@ print(
             "discount",
             "purchase",
             "ITE",
+            "ITE_lower",
+            "ITE_upper",
             "segment"
         ]
     ].head(20)
@@ -287,3 +362,42 @@ print("=" * 50)
 
 print("ITE results saved successfully.")
 print("Output:", OUTPUT_PATH)
+
+
+# 18. SAVE NUISANCE MODEL DIAGNOSTICS
+
+METRICS_PATH = os.path.join(
+    BASE_DIR,
+    "causal",
+    "nuisance_model_metrics.md"
+)
+
+metrics_note = f"""# Nuisance Model Diagnostics — Week 2
+
+These metrics check the internal Random Forest models used inside
+CausalForestDML (the Y-model and T-model). They are diagnostic
+checkpoints, not the final project output — the final output is the
+ITE distribution, confidence intervals, and the Qini/Uplift curve.
+
+## Outcome model (Random Forest Regressor)
+- RMSE on held-out test set: {rmse:.4f}
+
+## Treatment model (Random Forest Classifier)
+- Accuracy on held-out test set: {t_accuracy:.4f}
+
+## ITE summary
+- Mean ITE: {ite.mean():.4f}
+- Std ITE: {ite.std():.4f}
+- Average Treatment Effect (ATE): {ate:.4f}
+- % customers with positive ITE: {positive_ite / len(ite) * 100:.2f}%
+
+## Status
+Model trained successfully. ite_score.csv exported with confidence
+intervals for Princy's Qini/Uplift curve computation.
+"""
+
+with open(METRICS_PATH, "w") as f:
+    f.write(metrics_note)
+
+print("Nuisance model diagnostics saved successfully.")
+print("Output:", METRICS_PATH)
