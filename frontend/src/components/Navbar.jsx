@@ -1,7 +1,6 @@
 import { NavLink } from "react-router-dom";
 import "./Navbar.css";
 
-
 export default function Navbar() {
 
   return (
@@ -45,30 +44,25 @@ export default function Navbar() {
           Dashboard
         </NavLink>
 
-
-        <NavLink
-          to="/upload"
-        >
+        <NavLink to="/upload">
           Upload Data
         </NavLink>
 
-
-        <NavLink
-          to="/budget"
-        >
+        <NavLink to="/budget">
           Budget Settings
         </NavLink>
 
-
-        <NavLink
-          to="/insights"
-        >
+        <NavLink to="/insights">
           Insights
+        </NavLink>
+
+        <NavLink to="/prescription">
+          Prescription
         </NavLink>
 
       </nav>
 
     </header>
-  );
 
+  );
 }
