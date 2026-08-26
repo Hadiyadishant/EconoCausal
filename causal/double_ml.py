@@ -239,7 +239,6 @@ print("=" * 50)
 
 print("Average Treatment Effect:", ate)
 
-
 # 12. CREATE ITE RESULTS DATAFRAME
 
 

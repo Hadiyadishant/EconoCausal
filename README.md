@@ -1,98 +1,40 @@
-# EconoCausal
+# EconoCausal - Causal DAG
 
-EconoCausal is a causal AI platform designed to estimate the causal impact of
-marketing discounts on customer purchasing behavior.
+## Overview
 
-The project combines causal inference, Double Machine Learning, uplift
-analysis, and an interactive React dashboard to help identify customers who
-are likely to benefit from a marketing treatment.
+This module contains the Week 1 causal inference implementation for the
+EconoCausal project.
 
----
+The purpose of this module is to define the causal relationship between:
 
-## Project Objective
+- Treatment: discount
+- Outcome: purchase
+- Confounders: customer characteristics that influence both treatment and outcome
 
-The main business question is:
+The causal graph is created using Microsoft's DoWhy library.
 
-**What is the causal effect of giving a customer a discount on their probability**
-**of purchasing?**
-
-Traditional machine learning can identify correlations between customer
-characteristics and purchases, but correlation does not necessarily imply
-causation.
-
-EconoCausal uses causal inference techniques to estimate the effect of a
-discount while accounting for observed customer characteristics.
+The DAG is also visualized using NetworkX and Matplotlib and saved as a JPG
+image for documentation and review.
 
 ---
 
-# Project Pipeline
+## Business Question
 
-The current project follows this causal ML workflow:
+What is the causal effect of giving a customer a discount on their
+probability of purchasing?
 
-Historical Customer Data
-        |
-        v
-Data Validation & Preprocessing
-        |
-        v
-DoWhy Causal DAG
-        |
-        v
-Causal Identification
-        |
-        v
-EconML Double Machine Learning
-        |
-        v
-Individual Treatment Effect (ITE)
-        |
-        v
-ITE Validation
-        |
-        v
-Qini / Uplift Analysis
-        |
-        v
-React + Plotly Dashboard
-        |
-        v
-Business Interpretation
+The goal is not simply to determine whether customers who receive discounts
+purchase more.
 
-Future stages will extend this pipeline with optimization, API integration,
-and data-drift monitoring.
+Instead, the project aims to estimate whether the discount itself causes
+an increase in the probability of purchase after accounting for confounding
+customer characteristics.
 
 ---
 
-# Technology Stack
+## Dataset
 
-## Python / Causal ML
-
-- Python
-- Pandas
-- NumPy
-- Scikit-learn
-- DoWhy
-- EconML
-- Random Forest
-- Matplotlib
-- Seaborn
-
-## Frontend
-
-- React
-- Vite
-- React Router
-- Plotly
-- react-plotly.js
-- CSS
-
----
-
-# Dataset
-
-The project uses a cleaned mock retail dataset.
-
-Dataset file:
+The DAG uses the cleaned retail campaign dataset:
 
 ```text
 data/mockretaildatacleaned.csv
