@@ -1,0 +1,12 @@
+{
+  "budget": 5000.0,
+  "total_predicted_revenue": 92560.36,
+  "total_marketing_cost": 4998.85,
+  "budget_remaining": 1.15,
+  "budget_utilization_pct": 99.98,
+  "num_customers_total": 5000,
+  "num_customers_discounted": 1936,
+  "pct_customers_discounted": 38.72,
+  "avg_discount_all_customers_pct": 3.2,
+  "avg_discount_among_discounted_pct": 8.26
+}
