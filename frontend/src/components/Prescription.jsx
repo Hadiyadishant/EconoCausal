@@ -1,114 +1,55 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./Prescription.css";
 
-const Prescription = () => {
-  const [allocations, setAllocations] = useState([]);
+const BUDGET = 5000;
+
+function Prescription() {
+  const [data, setData] = useState(null);
+  const [search, setSearch] = useState("");
+  const [discountFilter, setDiscountFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/data/optimized_discount_assignments.csv")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to load optimization results.");
+    fetch("/data/optimization_results.json")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Unable to load optimization results");
         }
-
-        return response.text();
+        return res.json();
       })
-      .then((csvText) => {
-        const rows = csvText
-          .trim()
-          .split("\n")
-          .map((row) => row.split(","));
-
-        if (rows.length < 2) {
-          throw new Error("Optimization file is empty.");
-        }
-
-        const headers = rows[0].map((header) =>
-          header.trim().toLowerCase()
-        );
-
-        const data = rows.slice(1).map((row) => {
-          const record = {};
-
-          headers.forEach((header, index) => {
-            record[header] = row[index]?.trim() || "";
-          });
-
-          return record;
-        });
-
-        setAllocations(data);
+      .then((result) => {
+        setData(result);
         setLoading(false);
       })
       .catch((err) => {
-        console.error(err);
         setError(err.message);
         setLoading(false);
       });
   }, []);
 
-  const getValue = (row, possibleNames) => {
-    for (const name of possibleNames) {
-      if (row[name] !== undefined && row[name] !== "") {
-        return row[name];
-      }
-    }
+  const allocations = data?.allocations || [];
 
-    return 0;
-  };
-
-  const totalRevenue = useMemo(() => {
-    return allocations.reduce((total, row) => {
-      return (
-        total +
-        Number(
-          getValue(row, [
-            "predicted_revenue",
-            "revenue",
-          ])
-        )
-      );
-    }, 0);
-  }, [allocations]);
-
-  const totalCost = useMemo(() => {
-    return allocations.reduce((total, row) => {
-      return (
-        total +
-        Number(
-          getValue(row, [
-            "marketing_cost",
-            "cost",
-            "discount_cost",
-          ])
-        )
-      );
-    }, 0);
-  }, [allocations]);
-
-  const customersWithDiscount = useMemo(() => {
+  const filteredData = useMemo(() => {
     return allocations.filter((row) => {
-      const discount = Number(
-        getValue(row, [
-          "optimal_discount",
-          "discount",
-        ])
-      );
+      const matchesSearch =
+        String(row.customer_id)
+          .toLowerCase()
+          .includes(search.toLowerCase());
 
-      return discount > 0;
-    }).length;
-  }, [allocations]);
+      const matchesDiscount =
+        discountFilter === "all" ||
+        Number(row.optimal_discount) ===
+          Number(discountFilter);
+
+      return matchesSearch && matchesDiscount;
+    });
+  }, [allocations, search, discountFilter]);
 
   if (loading) {
     return (
       <div className="prescription-page">
-        <div className="prescription-container">
-          <div className="loading-card">
-            Loading optimization results...
-          </div>
-        </div>
+        <h1>Loading Prescription...</h1>
       </div>
     );
   }
@@ -116,190 +57,192 @@ const Prescription = () => {
   if (error) {
     return (
       <div className="prescription-page">
-        <div className="prescription-container">
-          <div className="error-card">
-            <h2>Unable to load prescription</h2>
-            <p>{error}</p>
-
-            <p>
-              Make sure the optimization output is available at:
-            </p>
-
-            <code>
-              frontend/public/data/optimized_discount_assignments.csv
-            </code>
-          </div>
-        </div>
+        <h1>Unable to load results</h1>
+        <p>{error}</p>
       </div>
     );
   }
 
+  const totalCustomers = allocations.length;
+
+  const customersAllocated = allocations.filter(
+    (row) => Number(row.optimal_discount) > 0
+  ).length;
+
+  const totalRevenue = allocations.reduce(
+    (sum, row) => sum + Number(row.predicted_revenue || 0),
+    0
+  );
+
+  const totalCost = allocations.reduce(
+    (sum, row) => sum + Number(row.marketing_cost || 0),
+    0
+  );
+
+  const budgetRemaining = BUDGET - totalCost;
+
   return (
     <div className="prescription-page">
-      <div className="prescription-container">
 
-        {/* Header */}
+      <div className="page-header">
+        <span>PRESCRIPTIVE OPTIMIZATION</span>
+        <h1>Final Prescription</h1>
+        <p>
+          Customer-level optimal discount allocation
+          generated by the prescriptive optimization model.
+        </p>
+      </div>
 
-        <div className="prescription-header">
-          <div>
-            <span className="page-label">
-              PRESCRIPTIVE OPTIMIZATION
-            </span>
+      <div className="summary-grid">
 
-            <h1>Optimal Discount Prescription</h1>
-
-            <p>
-              Customer-level discount allocation generated
-              by the optimization model.
-            </p>
-          </div>
+        <div className="summary-card">
+          <span>Total Customers</span>
+          <strong>{totalCustomers.toLocaleString()}</strong>
         </div>
 
-        {/* Summary Cards */}
-
-        <div className="prescription-summary">
-
-          <div className="summary-card">
-            <span>Total Customers</span>
-
-            <strong>
-              {allocations.length.toLocaleString()}
-            </strong>
-          </div>
-
-          <div className="summary-card">
-            <span>Customers with Discount</span>
-
-            <strong>
-              {customersWithDiscount.toLocaleString()}
-            </strong>
-          </div>
-
-          <div className="summary-card">
-            <span>Total Predicted Revenue</span>
-
-            <strong>
-              ₹{totalRevenue.toFixed(2)}
-            </strong>
-          </div>
-
-          <div className="summary-card">
-            <span>Total Marketing Cost</span>
-
-            <strong>
-              ₹{totalCost.toFixed(2)}
-            </strong>
-          </div>
-
+        <div className="summary-card">
+          <span>Customers Allocated</span>
+          <strong>
+            {customersAllocated.toLocaleString()}
+          </strong>
         </div>
 
-        {/* Allocation Matrix */}
+        <div className="summary-card">
+          <span>Predicted Revenue</span>
+          <strong>
+            ₹{totalRevenue.toFixed(2)}
+          </strong>
+        </div>
 
-        <div className="matrix-card">
+        <div className="summary-card">
+          <span>Marketing Cost</span>
+          <strong>
+            ₹{totalCost.toFixed(2)}
+          </strong>
+        </div>
 
-          <div className="matrix-header">
-            <div>
-              <h2>Allocation Matrix</h2>
+      </div>
 
-              <p>
-                Mathematically optimal discount assigned
-                to each customer.
-              </p>
-            </div>
+      <div className="budget-status">
+        <strong>Budget Remaining:</strong>{" "}
+        ₹{budgetRemaining.toFixed(2)}
 
-            <span className="result-badge">
-              Optimization Complete
-            </span>
-          </div>
+        {totalCost <= BUDGET ? (
+          <span className="success">
+            {" "}✓ Budget satisfied
+          </span>
+        ) : (
+          <span className="error">
+            {" "}⚠ Budget exceeded
+          </span>
+        )}
+      </div>
 
-          <div className="table-wrapper">
+      <div className="filters">
 
-            <table className="prescription-table">
+        <div>
+          <label>Search Customer</label>
+          <input
+            type="text"
+            placeholder="Enter customer ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Customer ID</th>
-                  <th>Optimal Discount</th>
-                  <th>Predicted Revenue</th>
-                  <th>Marketing Cost</th>
+        <div>
+          <label>Optimal Discount</label>
+          <select
+            value={discountFilter}
+            onChange={(e) =>
+              setDiscountFilter(e.target.value)
+            }
+          >
+            <option value="all">All Discounts</option>
+            <option value="0">0%</option>
+            <option value="5">5%</option>
+            <option value="10">10%</option>
+            <option value="15">15%</option>
+            <option value="20">20%</option>
+            <option value="25">25%</option>
+            <option value="30">30%</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div className="allocation-card">
+
+        <div className="allocation-header">
+          <h2>Allocation Matrix</h2>
+          <p>
+            {filteredData.length.toLocaleString()}
+            {" "}customers displayed
+          </p>
+        </div>
+
+        <div className="table-container">
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>Customer ID</th>
+                <th>Optimal Discount</th>
+                <th>Predicted Revenue</th>
+                <th>Marketing Cost</th>
+              </tr>
+            </thead>
+
+            <tbody>
+
+              {filteredData.map((row) => (
+                <tr key={row.customer_id}>
+
+                  <td>{row.customer_id}</td>
+
+                  <td>
+                    <span
+                      className={
+                        Number(row.optimal_discount) > 0
+                          ? "discount active"
+                          : "discount"
+                      }
+                    >
+                      {Number(
+                        row.optimal_discount
+                      ).toFixed(0)}
+                      %
+                    </span>
+                  </td>
+
+                  <td>
+                    ₹
+                    {Number(
+                      row.predicted_revenue || 0
+                    ).toFixed(2)}
+                  </td>
+
+                  <td>
+                    ₹
+                    {Number(
+                      row.marketing_cost || 0
+                    ).toFixed(2)}
+                  </td>
+
                 </tr>
-              </thead>
+              ))}
 
-              <tbody>
+            </tbody>
 
-                {allocations.map((row, index) => {
-
-                  const customerId = getValue(
-                    row,
-                    ["customer_id", "customerid", "id"]
-                  );
-
-                  const discount = getValue(
-                    row,
-                    [
-                      "optimal_discount",
-                      "discount",
-                    ]
-                  );
-
-                  const revenue = getValue(
-                    row,
-                    [
-                      "predicted_revenue",
-                      "revenue",
-                    ]
-                  );
-
-                  const cost = getValue(
-                    row,
-                    [
-                      "marketing_cost",
-                      "cost",
-                      "discount_cost",
-                    ]
-                  );
-
-                  return (
-                    <tr key={index}>
-
-                      <td>
-                        {index + 1}
-                      </td>
-
-                      <td className="customer-id">
-                        {customerId}
-                      </td>
-
-                      <td>
-                        <span className="discount-badge">
-                          {Number(discount).toFixed(0)}%
-                        </span>
-                      </td>
-
-                      <td>
-                        ₹{Number(revenue).toFixed(2)}
-                      </td>
-
-                      <td>
-                        ₹{Number(cost).toFixed(2)}
-                      </td>
-
-                    </tr>
-                  );
-                })}
-
-              </tbody>
-
-            </table>
-
-          </div>
+          </table>
 
         </div>
 
       </div>
+
     </div>
   );
-};
+}
 
 export default Prescription;

@@ -1,31 +1,27 @@
 """
-Week 3 - Day 4
-Prescriptive Optimization
+Week 3 - Day 7
+Prescriptive Optimization - Final Version
 
 Owner: Dishant
 
 Uses ONLY Princy's prepared optimization matrices.
 
-Objective:
-    Maximize total predicted revenue.
+Input:
+    data/customer_optimizer_matrices_final.npz
 
-Decision:
-    Select exactly one discount level per customer.
-
-Constraint:
-    Total marketing cost <= budget.
+Output:
+    data/optimized_discount_assignments.csv
 """
 
 import os
 import numpy as np
 import pandas as pd
-
 from scipy.optimize import milp, LinearConstraint, Bounds
 
 
-# --------------------------------------------------
-# Paths
-# --------------------------------------------------
+# ============================================================
+# PATHS
+# ============================================================
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
@@ -44,19 +40,19 @@ OUTPUT_PATH = os.path.join(
 )
 
 
-# --------------------------------------------------
-# Configuration
-# --------------------------------------------------
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 BUDGET = 5000.0
 
 
-# --------------------------------------------------
-# Load Princy's data
-# --------------------------------------------------
+# ============================================================
+# LOAD PRINCY'S DATA
+# ============================================================
 
 print("=" * 60)
-print("DAY 4 - PRESCRIPTIVE OPTIMIZATION")
+print("DAY 7 - FINAL PRESCRIPTIVE OPTIMIZATION")
 print("=" * 60)
 
 print("\nLoading Princy's optimization matrices...")
@@ -74,9 +70,9 @@ revenue_matrix = data["revenue_matrix"]
 cost_matrix = data["cost_matrix"]
 
 
-# --------------------------------------------------
-# Basic validation
-# --------------------------------------------------
+# ============================================================
+# VALIDATION
+# ============================================================
 
 n_customers = len(customer_ids)
 n_discounts = len(discount_levels)
@@ -99,16 +95,15 @@ if (revenue_matrix < 0).any():
 if (cost_matrix < 0).any():
     raise ValueError("Cost matrix contains negative values.")
 
-
 print(f"Customers: {n_customers}")
 print(f"Discount levels: {discount_levels.tolist()}")
 
 
-# --------------------------------------------------
-# Decision variables
-# --------------------------------------------------
+# ============================================================
+# DECISION VARIABLES
+# ============================================================
 
-# x[i,j] = 1 if customer i receives discount j
+# x[i,j] = 1 when customer i receives discount j
 
 n_variables = n_customers * n_discounts
 
@@ -120,9 +115,9 @@ bounds = Bounds(
 )
 
 
-# --------------------------------------------------
-# Exactly one discount per customer
-# --------------------------------------------------
+# ============================================================
+# ONE DISCOUNT PER CUSTOMER
+# ============================================================
 
 customer_matrix = np.zeros(
     (n_customers, n_variables)
@@ -140,9 +135,9 @@ customer_constraint = LinearConstraint(
 )
 
 
-# --------------------------------------------------
-# Budget constraint
-# --------------------------------------------------
+# ============================================================
+# BUDGET CONSTRAINT
+# ============================================================
 
 budget_constraint = LinearConstraint(
     cost_matrix.flatten().reshape(1, -1),
@@ -151,11 +146,11 @@ budget_constraint = LinearConstraint(
 )
 
 
-# --------------------------------------------------
-# Run MILP
-# --------------------------------------------------
+# ============================================================
+# RUN FINAL OPTIMIZATION
+# ============================================================
 
-print("\nRunning SciPy MILP optimizer...")
+print("\nRunning final SciPy MILP optimization...")
 
 result = milp(
     c=objective,
@@ -174,9 +169,9 @@ if not result.success:
     )
 
 
-# --------------------------------------------------
-# Convert solution
-# --------------------------------------------------
+# ============================================================
+# CREATE FINAL ASSIGNMENT
+# ============================================================
 
 solution = result.x.reshape(
     n_customers,
@@ -201,22 +196,64 @@ assigned_cost = cost_matrix[
 ]
 
 
-# --------------------------------------------------
-# Create prescription
-# --------------------------------------------------
-
 allocation = pd.DataFrame({
     "customer_id": customer_ids,
     "optimal_discount": assigned_discount,
-    "discount_fraction": assigned_discount / 100,
+    "discount_fraction": assigned_discount / 100.0,
     "predicted_revenue": assigned_revenue,
     "marketing_cost": assigned_cost
 })
 
 
-# --------------------------------------------------
-# Save result
-# --------------------------------------------------
+# ============================================================
+# FINAL METRICS
+# ============================================================
+
+total_revenue = allocation["predicted_revenue"].sum()
+total_cost = allocation["marketing_cost"].sum()
+
+budget_remaining = BUDGET - total_cost
+
+customers_with_discount = (
+    allocation["optimal_discount"] > 0
+).sum()
+
+average_discount = (
+    allocation["optimal_discount"].mean()
+)
+
+
+# ============================================================
+# FINAL VALIDATION
+# ============================================================
+
+budget_satisfied = total_cost <= BUDGET + 1e-8
+
+one_discount_per_customer = (
+    allocation["customer_id"].nunique()
+    == n_customers
+)
+
+allowed_discount = (
+    allocation["optimal_discount"]
+    .isin(discount_levels)
+    .all()
+)
+
+
+if not (
+    budget_satisfied
+    and one_discount_per_customer
+    and allowed_discount
+):
+    raise ValueError(
+        "Final optimization validation failed."
+    )
+
+
+# ============================================================
+# SAVE FINAL PRESCRIPTION
+# ============================================================
 
 allocation.to_csv(
     OUTPUT_PATH,
@@ -224,63 +261,48 @@ allocation.to_csv(
 )
 
 
-print("\nOptimization completed successfully.")
-
-print(
-    f"Prescription saved to:\n{OUTPUT_PATH}"
-)
-
-
-# --------------------------------------------------
-# Day 5 - Constraint validation
-# --------------------------------------------------
-
-MIN_DISCOUNT = discount_levels.min()
-MAX_DISCOUNT = discount_levels.max()
-
-allowed_discounts = set(
-    discount_levels.tolist()
-)
-
-total_cost = allocation["marketing_cost"].sum()
-
-budget_satisfied = (
-    total_cost <= BUDGET + 1e-8
-)
-
-one_discount_per_customer = (
-    allocation["customer_id"].nunique()
-    == n_customers
-)
-
-discount_bounds_satisfied = (
-    allocation["optimal_discount"].between(
-        MIN_DISCOUNT,
-        MAX_DISCOUNT
-    ).all()
-)
-
-allowed_discount_satisfied = (
-    allocation["optimal_discount"]
-    .isin(allowed_discounts)
-    .all()
-)
-
+# ============================================================
+# FINAL REPORT
+# ============================================================
 
 print("\n" + "=" * 60)
-print("DAY 5 - CONSTRAINT VALIDATION")
+print("FINAL OPTIMIZATION RESULT")
 print("=" * 60)
 
+print(f"Customers: {n_customers}")
 print(
-    f"Total marketing cost: ₹{total_cost:.2f}"
+    f"Customers receiving discount: "
+    f"{customers_with_discount}"
 )
 
 print(
-    f"Budget: ₹{BUDGET:.2f}"
+    f"Average discount: "
+    f"{average_discount:.2f}%"
 )
 
 print(
-    f"Budget constraint: {budget_satisfied}"
+    f"Total predicted revenue: "
+    f"₹{total_revenue:.2f}"
+)
+
+print(
+    f"Total marketing cost: "
+    f"₹{total_cost:.2f}"
+)
+
+print(
+    f"Budget: "
+    f"₹{BUDGET:.2f}"
+)
+
+print(
+    f"Budget remaining: "
+    f"₹{budget_remaining:.2f}"
+)
+
+print(
+    f"Budget constraint satisfied: "
+    f"{budget_satisfied}"
 )
 
 print(
@@ -289,23 +311,18 @@ print(
 )
 
 print(
-    f"Discount bounds: "
-    f"{discount_bounds_satisfied}"
-)
-
-print(
     f"Allowed discount levels: "
-    f"{allowed_discount_satisfied}"
+    f"{allowed_discount}"
 )
 
-if not all([
-    budget_satisfied,
-    one_discount_per_customer,
-    discount_bounds_satisfied,
-    allowed_discount_satisfied
-]):
-    raise ValueError(
-        "Optimization result failed constraint validation."
-    )
+print("\nFinal prescription saved to:")
+print(OUTPUT_PATH)
 
-print("\nAll Day 5 constraints satisfied.")
+print("\nSample allocation:")
+print(
+    allocation.head(10).to_string(index=False)
+)
+
+print("\n" + "=" * 60)
+print("DAY 7 COMPLETED SUCCESSFULLY")
+print("=" * 60)
