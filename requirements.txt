@@ -7,3 +7,5 @@ seaborn
 os
 networkx
 econml
+fastapi
+uvicorn
