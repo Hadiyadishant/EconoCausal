@@ -1,0 +1,19 @@
+============================================================
+EconoCausal — Drift Report (test2_changed)
+Generated (UTC): 2026-09-05T18:24:38.371702+00:00
+Threshold (p-value): 0.05
+------------------------------------------------------------
+Variable                Type          p-value     Status
+------------------------------------------------------------
+age                     numeric       0.824       NO DRIFT
+income                  numeric       0.000       DRIFT WARNING
+previous_purchases      numeric       0.080       NO DRIFT
+customer_tenure_days    numeric       0.212       NO DRIFT
+avg_basket_size         numeric       0.893       NO DRIFT
+discount                numeric       0.882       NO DRIFT
+campaign_response       numeric       0.616       NO DRIFT
+channel                 categorical   0.500       NO DRIFT
+purchase                categorical   0.316       NO DRIFT
+------------------------------------------------------------
+OVERALL: DRIFT DETECTED
+============================================================

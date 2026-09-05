@@ -1,0 +1,60 @@
+{
+  "overall_status": "NO DRIFT",
+  "threshold": 0.05,
+  "per_variable": {
+    "age": {
+      "statistic": 0.029200000000000004,
+      "p_value": 0.8241102391874527,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "income": {
+      "statistic": 0.0232,
+      "p_value": 0.9634636916186183,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "previous_purchases": {
+      "statistic": 0.05920000000000003,
+      "p_value": 0.0799846982870698,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "customer_tenure_days": {
+      "statistic": 0.0494,
+      "p_value": 0.2115137726343427,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "avg_basket_size": {
+      "statistic": 0.02679999999999999,
+      "p_value": 0.8925506778060431,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "discount": {
+      "statistic": 0.027200000000000113,
+      "p_value": 0.8821680516693119,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "campaign_response": {
+      "statistic": 0.03520000000000001,
+      "p_value": 0.6158933527605659,
+      "status": "NO DRIFT",
+      "type": "numeric"
+    },
+    "channel": {
+      "statistic": 0.4540116469121155,
+      "p_value": 0.5004360180514869,
+      "status": "NO DRIFT",
+      "type": "categorical"
+    },
+    "purchase": {
+      "statistic": 0.08198800413014587,
+      "p_value": 0.7746211900563585,
+      "status": "NO DRIFT",
+      "type": "categorical"
+    }
+  }
+}
