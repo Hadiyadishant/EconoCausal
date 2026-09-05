@@ -1,16 +1,23 @@
 import os
-import sys
 import pandas as pd
+from functools import lru_cache
+
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from econml.dml import CausalForestDML
 
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
 
-sys.path.append(BASE_DIR)
+DATA_PATH = os.path.join(
+    BASE_DIR,
+    "notebooks",
+    "dml_ready_data.csv"
+)
 
 
-FEATURE_COLUMNS = [
+X_FEATURES = [
     "age",
     "income",
     "previous_purchases",
@@ -20,28 +27,63 @@ FEATURE_COLUMNS = [
 ]
 
 
-def preprocess_data(customer_data):
-    """
-    Convert incoming customer data
-    into the feature format required
-    by the causal model.
-    """
+@lru_cache(maxsize=1)
+def load_causal_model():
 
-    df = pd.DataFrame(customer_data)
+    df = pd.read_csv(DATA_PATH)
 
-    missing_columns = [
-        column
-        for column in FEATURE_COLUMNS
-        if column not in df.columns
+    T = (df["discount"] > 0).astype(int)
+    Y = df["purchase"]
+
+    X = df[X_FEATURES].copy()
+
+    W = df[["channel_online"]].copy()
+
+    model_y = RandomForestRegressor(
+        n_estimators=200,
+        random_state=42
+    )
+
+    model_t = RandomForestClassifier(
+        n_estimators=200,
+        random_state=42
+    )
+
+    model = CausalForestDML(
+        model_y=model_y,
+        model_t=model_t,
+        discrete_treatment=True,
+        random_state=42
+    )
+
+    model.fit(
+        Y,
+        T,
+        X=X,
+        W=W
+    )
+
+    return model
+
+
+def predict_ite(customers):
+
+    df = pd.DataFrame(customers)
+
+    missing = [
+        col for col in X_FEATURES
+        if col not in df.columns
     ]
 
-    if missing_columns:
+    if missing:
         raise ValueError(
-            f"Missing columns: {missing_columns}"
+            f"Missing required columns: {missing}"
         )
 
-    return df[FEATURE_COLUMNS]
+    X = df[X_FEATURES].copy()
 
+    model = load_causal_model()
 
-def get_required_features():
-    return FEATURE_COLUMNS
+    ite = model.effect(X)
+
+    return ite.tolist()

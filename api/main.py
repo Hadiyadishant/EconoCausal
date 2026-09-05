@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+
 from api.schemas import PredictionRequest
+from api.causal_engine import predict_ite
 
 
 app = FastAPI(
     title="EconoCausal API",
-    description="REST API for causal effect prediction",
     version="1.0.0"
 )
 
@@ -26,12 +27,39 @@ def health():
 
 
 @app.post("/predict")
-def predict(
-    request: PredictionRequest
-):
+def predict(request: PredictionRequest):
 
-    return {
-        "status": "received",
-        "customers": len(request.customers),
-        "message": "Prediction endpoint ready"
-    }
+    try:
+
+        customers = [
+            customer.model_dump()
+            for customer in request.customers
+        ]
+
+        ite = predict_ite(customers)
+
+        return {
+            "status": "success",
+            "customers": len(customers),
+            "predictions": [
+                {
+                    "customer_index": i,
+                    "ite": value
+                }
+                for i, value in enumerate(ite)
+            ]
+        }
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Prediction failed: {str(e)}"
+        )

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel , Field
 from typing import List
 
 
@@ -14,7 +14,9 @@ class CustomerInput(BaseModel):
 
 class PredictionRequest(BaseModel):
 
-    customers: List[CustomerInput]
+    customers: List[CustomerInput] = Field(
+        min_length=1
+    )
 
 
 class PredictionResult(BaseModel):

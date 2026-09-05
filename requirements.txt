@@ -9,3 +9,5 @@ networkx
 econml
 fastapi
 uvicorn
+pytest
+httpx2
