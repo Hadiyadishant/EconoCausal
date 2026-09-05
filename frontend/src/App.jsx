@@ -10,18 +10,16 @@ import UploadData from "./components/UploadData";
 import BudgetSettings from "./components/BudgetSettings";
 import Insights from "./components/Insights";
 import Dashboard from "./components/Dashboard";
-import AllocationMatrix from "./components/AllocationMatrix";
+import Prescription from "./components/Prescription";
 
 import "./App.css";
 
 function App() {
   return (
     <BrowserRouter>
-
       <Navbar />
 
       <main>
-
         <Routes>
 
           <Route
@@ -46,7 +44,7 @@ function App() {
 
           <Route
             path="/prescription"
-            element={<AllocationMatrix />}
+            element={<Prescription />}
           />
 
           <Route
@@ -55,9 +53,7 @@ function App() {
           />
 
         </Routes>
-
       </main>
-
     </BrowserRouter>
   );
 }

@@ -1,28 +1,13 @@
 """
-Week 3 - Prescriptive Optimization
+Week 3 - Day 7
+Prescriptive Optimization - Final Version
 
 Owner: Dishant
 
-Purpose:
-Use Princy's prepared customer-level prediction matrices and
-find the mathematically optimal discount allocation.
+Uses ONLY Princy's prepared optimization matrices.
 
 Input:
     data/customer_optimizer_matrices_final.npz
-
-The NPZ contains:
-    customer_ids
-    discount_levels
-    revenue_matrix
-    cost_matrix
-
-Optimization:
-    Maximize total predicted revenue
-
-Constraints:
-    1. Exactly one discount per customer
-    2. Total marketing cost <= budget
-    3. Discount levels are limited to Princy's supplied levels
 
 Output:
     data/optimized_discount_assignments.csv
@@ -31,7 +16,6 @@ Output:
 import os
 import numpy as np
 import pandas as pd
-
 from scipy.optimize import milp, LinearConstraint, Bounds
 
 
@@ -68,30 +52,21 @@ BUDGET = 5000.0
 # ============================================================
 
 print("=" * 60)
-print("PRESCRIPTIVE OPTIMIZATION")
+print("DAY 7 - FINAL PRESCRIPTIVE OPTIMIZATION")
 print("=" * 60)
 
-print("\nLoading Princy's optimization input...")
+print("\nLoading Princy's optimization matrices...")
 
 if not os.path.exists(INPUT_PATH):
     raise FileNotFoundError(
-        f"Princy's optimization input was not found:\n"
-        f"{INPUT_PATH}"
+        f"Princy's input file not found:\n{INPUT_PATH}"
     )
 
-
-data = np.load(
-    INPUT_PATH,
-    allow_pickle=True
-)
-
+data = np.load(INPUT_PATH, allow_pickle=True)
 
 customer_ids = data["customer_ids"]
-
 discount_levels = data["discount_levels"]
-
 revenue_matrix = data["revenue_matrix"]
-
 cost_matrix = data["cost_matrix"]
 
 
@@ -99,238 +74,103 @@ cost_matrix = data["cost_matrix"]
 # VALIDATION
 # ============================================================
 
-print("\nInput validation")
-
 n_customers = len(customer_ids)
-
 n_discounts = len(discount_levels)
 
+if revenue_matrix.shape != (n_customers, n_discounts):
+    raise ValueError("Revenue matrix shape is invalid.")
 
-if revenue_matrix.shape != (
-    n_customers,
-    n_discounts
-):
-    raise ValueError(
-        "Revenue matrix shape does not match "
-        "customer IDs and discount levels."
-    )
-
-
-if cost_matrix.shape != (
-    n_customers,
-    n_discounts
-):
-    raise ValueError(
-        "Cost matrix shape does not match "
-        "customer IDs and discount levels."
-    )
-
+if cost_matrix.shape != (n_customers, n_discounts):
+    raise ValueError("Cost matrix shape is invalid.")
 
 if np.isnan(revenue_matrix).any():
-    raise ValueError(
-        "Revenue matrix contains NaN values."
-    )
-
+    raise ValueError("Revenue matrix contains NaN values.")
 
 if np.isnan(cost_matrix).any():
-    raise ValueError(
-        "Cost matrix contains NaN values."
-    )
-
+    raise ValueError("Cost matrix contains NaN values.")
 
 if (revenue_matrix < 0).any():
-    raise ValueError(
-        "Revenue matrix contains negative values."
-    )
-
+    raise ValueError("Revenue matrix contains negative values.")
 
 if (cost_matrix < 0).any():
-    raise ValueError(
-        "Cost matrix contains negative values."
-    )
+    raise ValueError("Cost matrix contains negative values.")
 
-
-if len(set(customer_ids)) != n_customers:
-    raise ValueError(
-        "Duplicate customer IDs found."
-    )
-
-
-print(
-    f"Customers: {n_customers}"
-)
-
-print(
-    f"Discount levels: {discount_levels.tolist()}"
-)
-
-print(
-    f"Revenue matrix shape: {revenue_matrix.shape}"
-)
-
-print(
-    f"Cost matrix shape: {cost_matrix.shape}"
-)
+print(f"Customers: {n_customers}")
+print(f"Discount levels: {discount_levels.tolist()}")
 
 
 # ============================================================
 # DECISION VARIABLES
 # ============================================================
 
-"""
-x[i,j] = 1
+# x[i,j] = 1 when customer i receives discount j
 
-if customer i receives discount j.
-
-x[i,j] = 0 otherwise.
-
-There are:
-
-    customers × discount_levels
-
-binary variables.
-"""
-
-number_of_variables = (
-    n_customers * n_discounts
-)
-
-
-print(
-    "\nDecision variables:",
-    number_of_variables
-)
-
-
-# ============================================================
-# OBJECTIVE
-# ============================================================
-
-"""
-SciPy milp minimizes by default.
-
-Therefore:
-
-    maximize revenue
-
-is converted into:
-
-    minimize -revenue
-"""
+n_variables = n_customers * n_discounts
 
 objective = -revenue_matrix.flatten()
 
-
-# ============================================================
-# BINARY BOUNDS
-# ============================================================
-
-lower_bounds = np.zeros(
-    number_of_variables
-)
-
-upper_bounds = np.ones(
-    number_of_variables
-)
-
 bounds = Bounds(
-    lower_bounds,
-    upper_bounds
+    np.zeros(n_variables),
+    np.ones(n_variables)
 )
 
 
 # ============================================================
-# CONSTRAINT 1
-# EXACTLY ONE DISCOUNT PER CUSTOMER
+# ONE DISCOUNT PER CUSTOMER
 # ============================================================
 
-"""
-For every customer:
-
-    x[i,0] + x[i,1] + ... + x[i,6] = 1
-"""
-
-customer_constraints = np.zeros(
-    (n_customers, number_of_variables)
+customer_matrix = np.zeros(
+    (n_customers, n_variables)
 )
-
 
 for i in range(n_customers):
-
     start = i * n_discounts
-
     end = start + n_discounts
-
-    customer_constraints[
-        i,
-        start:end
-    ] = 1
-
+    customer_matrix[i, start:end] = 1
 
 customer_constraint = LinearConstraint(
-    customer_constraints,
+    customer_matrix,
     np.ones(n_customers),
     np.ones(n_customers)
 )
 
 
 # ============================================================
-# CONSTRAINT 2
-# TOTAL MARKETING COST <= BUDGET
+# BUDGET CONSTRAINT
 # ============================================================
 
-budget_coefficients = (
-    cost_matrix.flatten()
-)
-
-
 budget_constraint = LinearConstraint(
-    budget_coefficients.reshape(1, -1),
+    cost_matrix.flatten().reshape(1, -1),
     -np.inf,
     BUDGET
 )
 
 
 # ============================================================
-# RUN SCIPY OPTIMIZER
+# RUN FINAL OPTIMIZATION
 # ============================================================
 
-print("\nRunning SciPy optimization...")
+print("\nRunning final SciPy MILP optimization...")
 
 result = milp(
     c=objective,
-    integrality=np.ones(
-        number_of_variables
-    ),
+    integrality=np.ones(n_variables),
     bounds=bounds,
     constraints=[
         customer_constraint,
         budget_constraint
     ],
-    options={
-        "time_limit": 300
-    }
+    options={"time_limit": 300}
 )
-
-
-# ============================================================
-# CHECK OPTIMIZATION RESULT
-# ============================================================
 
 if not result.success:
     raise RuntimeError(
-        "Optimization failed:\n"
-        f"{result.message}"
+        f"Optimization failed: {result.message}"
     )
 
 
-print(
-    "\nOptimization completed successfully."
-)
-
-
 # ============================================================
-# CONVERT SOLUTION
+# CREATE FINAL ASSIGNMENT
 # ============================================================
 
 solution = result.x.reshape(
@@ -338,55 +178,30 @@ solution = result.x.reshape(
     n_discounts
 )
 
-
-selected_indices = np.argmax(
+selected = np.argmax(
     solution,
     axis=1
 )
 
+assigned_discount = discount_levels[selected]
 
-assigned_discounts = (
-    discount_levels[selected_indices]
-)
+assigned_revenue = revenue_matrix[
+    np.arange(n_customers),
+    selected
+]
 
+assigned_cost = cost_matrix[
+    np.arange(n_customers),
+    selected
+]
 
-assigned_revenue = (
-    revenue_matrix[
-        np.arange(n_customers),
-        selected_indices
-    ]
-)
-
-
-assigned_cost = (
-    cost_matrix[
-        np.arange(n_customers),
-        selected_indices
-    ]
-)
-
-
-# ============================================================
-# FINAL ALLOCATION MATRIX
-# ============================================================
 
 allocation = pd.DataFrame({
-
-    "customer_id":
-        customer_ids,
-
-    "optimal_discount":
-        assigned_discounts,
-
-    "discount_fraction":
-        assigned_discounts / 100.0,
-
-    "predicted_revenue":
-        assigned_revenue,
-
-    "marketing_cost":
-        assigned_cost
-
+    "customer_id": customer_ids,
+    "optimal_discount": assigned_discount,
+    "discount_fraction": assigned_discount / 100.0,
+    "predicted_revenue": assigned_revenue,
+    "marketing_cost": assigned_cost
 })
 
 
@@ -394,27 +209,17 @@ allocation = pd.DataFrame({
 # FINAL METRICS
 # ============================================================
 
-total_cost = (
-    allocation["marketing_cost"]
-    .sum()
-)
+total_revenue = allocation["predicted_revenue"].sum()
+total_cost = allocation["marketing_cost"].sum()
 
-total_revenue = (
-    allocation["predicted_revenue"]
-    .sum()
-)
-
-budget_remaining = (
-    BUDGET - total_cost
-)
+budget_remaining = BUDGET - total_cost
 
 customers_with_discount = (
     allocation["optimal_discount"] > 0
 ).sum()
 
 average_discount = (
-    allocation["optimal_discount"]
-    .mean()
+    allocation["optimal_discount"].mean()
 )
 
 
@@ -422,25 +227,49 @@ average_discount = (
 # FINAL VALIDATION
 # ============================================================
 
-budget_satisfied = (
-    total_cost <= BUDGET + 1e-8
-)
-
+budget_satisfied = total_cost <= BUDGET + 1e-8
 
 one_discount_per_customer = (
     allocation["customer_id"].nunique()
     == n_customers
 )
 
-
-print("\n" + "=" * 60)
-print("OPTIMIZATION RESULT")
-print("=" * 60)
-
-print(
-    f"Customers: {n_customers}"
+allowed_discount = (
+    allocation["optimal_discount"]
+    .isin(discount_levels)
+    .all()
 )
 
+
+if not (
+    budget_satisfied
+    and one_discount_per_customer
+    and allowed_discount
+):
+    raise ValueError(
+        "Final optimization validation failed."
+    )
+
+
+# ============================================================
+# SAVE FINAL PRESCRIPTION
+# ============================================================
+
+allocation.to_csv(
+    OUTPUT_PATH,
+    index=False
+)
+
+
+# ============================================================
+# FINAL REPORT
+# ============================================================
+
+print("\n" + "=" * 60)
+print("FINAL OPTIMIZATION RESULT")
+print("=" * 60)
+
+print(f"Customers: {n_customers}")
 print(
     f"Customers receiving discount: "
     f"{customers_with_discount}"
@@ -477,34 +306,23 @@ print(
 )
 
 print(
-    f"One assignment per customer: "
+    f"One discount per customer: "
     f"{one_discount_per_customer}"
 )
 
-
-# ============================================================
-# SAVE FINAL PRESCRIPTION
-# ============================================================
-
-allocation.to_csv(
-    OUTPUT_PATH,
-    index=False
-)
-
-
 print(
-    "\nFinal prescription saved to:"
+    f"Allowed discount levels: "
+    f"{allowed_discount}"
 )
 
-print(
-    OUTPUT_PATH
-)
-
+print("\nFinal prescription saved to:")
+print(OUTPUT_PATH)
 
 print("\nSample allocation:")
-
 print(
-    allocation.head(10).to_string(
-        index=False
-    )
+    allocation.head(10).to_string(index=False)
 )
+
+print("\n" + "=" * 60)
+print("DAY 7 COMPLETED SUCCESSFULLY")
+print("=" * 60)
