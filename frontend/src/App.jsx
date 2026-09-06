@@ -11,6 +11,7 @@ import BudgetSettings from "./components/BudgetSettings";
 import Insights from "./components/Insights";
 import Dashboard from "./components/Dashboard";
 import Prescription from "./components/Prescription";
+import DataMonitoring from "./components/DataMonitoring";
 
 import "./App.css";
 
@@ -45,6 +46,11 @@ function App() {
           <Route
             path="/prescription"
             element={<Prescription />}
+          />
+
+          <Route
+            path="/monitoring"
+            element={<DataMonitoring />}
           />
 
           <Route

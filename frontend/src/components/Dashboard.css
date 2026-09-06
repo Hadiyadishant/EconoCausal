@@ -136,3 +136,90 @@
     font-size: 26px;
   }
 }
+
+/* ==========================================================
+   Week 4 additions — append to the existing Dashboard.css.
+   Reuses the page's existing spacing/radius rhythm; only new
+   selectors are introduced below, nothing here overrides the
+   original dashboard-card / dashboard-grid / dashboard-info
+   rules already in the file.
+========================================================== */
+
+.insights-section {
+  margin: 32px 0 40px;
+}
+
+.insights-section-header {
+  margin-bottom: 16px;
+}
+
+.insights-section-header h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.insights-section-header p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.dashboard-loading-card,
+.dashboard-empty-card {
+  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.dashboard-empty-card strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.dashboard-empty-card p {
+  margin: 0 0 14px;
+}
+
+.secondary-button {
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  background: #f8fafc;
+}
+
+.dashboard-issues {
+  margin-top: 12px;
+}
+
+.dashboard-issues p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #b45309;
+}
+
+@media (max-width: 640px) {
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+}
