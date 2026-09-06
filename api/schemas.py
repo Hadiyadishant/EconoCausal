@@ -1,5 +1,6 @@
-from pydantic import BaseModel , Field
-from typing import List
+from typing import Any, List, Dict
+
+from pydantic import BaseModel, Field
 
 
 class CustomerInput(BaseModel):
@@ -19,6 +20,18 @@ class PredictionRequest(BaseModel):
     )
 
 
+class DriftRequest(BaseModel):
+
+    data: List[Dict[str, Any]] = Field(
+        min_length=1
+    )
+
+
+class PrescriptionRequest(BaseModel):
+
+    customer_id: int | None = None
+
+
 class PredictionResult(BaseModel):
 
     customer_index: int
@@ -30,3 +43,12 @@ class PredictionResponse(BaseModel):
     status: str
     customers: int
     predictions: List[PredictionResult]
+
+
+class PrescriptionResult(BaseModel):
+
+    customer_id: int
+    optimal_discount: float
+    discount_fraction: float
+    predicted_revenue: float
+    marketing_cost: float

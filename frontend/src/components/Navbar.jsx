@@ -60,6 +60,10 @@ export default function Navbar() {
           Prescription
         </NavLink>
 
+        <NavLink to="/monitoring">
+          Monitoring
+        </NavLink>
+
       </nav>
 
     </header>

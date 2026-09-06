@@ -1,0 +1,69 @@
+.insight-card {
+  display: flex;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.insight-card-mark {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.insight-card--positive .insight-card-mark {
+  background: rgba(16, 163, 108, 0.12);
+  color: #0f8f5f;
+}
+
+.insight-card--warning .insight-card-mark {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.insight-card--neutral .insight-card-mark {
+  background: rgba(71, 85, 105, 0.12);
+  color: #475569;
+}
+
+.insight-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insight-card-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.insight-card-body h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.insight-card-body p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.insight-card--warning .insight-card-body h3 {
+  color: #92400e;
+}
