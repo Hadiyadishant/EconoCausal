@@ -1,9 +1,13 @@
+import json
 import os
+
 import pandas as pd
 
 
 BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
 )
 
 PRESCRIPTION_PATH = os.path.join(
@@ -12,15 +16,27 @@ PRESCRIPTION_PATH = os.path.join(
     "optimized_discount_assignments.csv"
 )
 
+SUMMARY_PATH = os.path.join(
+    BASE_DIR,
+    "data",
+    "runtime_optimization_summary.json"
+)
+
 
 def load_prescription():
 
-    if not os.path.exists(PRESCRIPTION_PATH):
+    if not os.path.exists(
+        PRESCRIPTION_PATH
+    ):
+
         raise FileNotFoundError(
-            "Optimized prescription file not found."
+            "Optimized prescription file not found. "
+            "Set a budget and run optimization first."
         )
 
-    df = pd.read_csv(PRESCRIPTION_PATH)
+    df = pd.read_csv(
+        PRESCRIPTION_PATH
+    )
 
     required_columns = [
         "customer_id",
@@ -31,26 +47,51 @@ def load_prescription():
     ]
 
     missing = [
-        col for col in required_columns
-        if col not in df.columns
+        column
+        for column in required_columns
+        if column not in df.columns
     ]
 
     if missing:
+
         raise ValueError(
-            f"Prescription file missing columns: {missing}"
+            f"Prescription file missing columns: "
+            f"{missing}"
         )
 
     return df
 
 
-def get_prescription(customer_id=None):
+def get_optimization_summary():
+
+    if not os.path.exists(
+        SUMMARY_PATH
+    ):
+
+        return None
+
+    with open(
+        SUMMARY_PATH,
+        "r",
+        encoding="utf-8"
+    ) as handle:
+
+        return json.load(handle)
+
+
+def get_prescription(
+    customer_id=None
+):
 
     df = load_prescription()
 
     if customer_id is not None:
 
         df = df[
-            df["customer_id"] == customer_id
+            df["customer_id"]
+            == customer_id
         ]
 
-    return df.to_dict(orient="records")
+    return df.to_dict(
+        orient="records"
+    )

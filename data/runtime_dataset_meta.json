@@ -1,0 +1,19 @@
+{
+  "file_name": "mockretaildatacleaned.csv",
+  "rows": 5000,
+  "columns": [
+    "customer_id",
+    "age",
+    "income",
+    "previous_purchases",
+    "campaign_response",
+    "customer_tenure_days",
+    "channel",
+    "avg_basket_size",
+    "discount",
+    "purchase",
+    "treatment",
+    "ITE",
+    "segment"
+  ]
+}

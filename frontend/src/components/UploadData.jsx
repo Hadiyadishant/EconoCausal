@@ -1,48 +1,52 @@
 import React, { useState } from "react";
-import { saveDataset } from "../services/storage";
+import Papa from "papaparse";
+
+import {
+  uploadDataset
+} from "../services/api";
+
+import {
+  saveDataset
+} from "../services/storage";
+
 import "./UploadData.css";
 
+
+const REQUIRED_COLUMNS = [
+
+  "customer_id",
+  "age",
+  "income",
+  "previous_purchases",
+  "campaign_response",
+  "customer_tenure_days",
+  "channel",
+  "avg_basket_size",
+  "discount",
+  "purchase"
+
+];
+
+
 const UploadData = () => {
-  const [file, setFile] = useState(null);
-  const [dataset, setDataset] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const parseCSV = (text) => {
-    const lines = text
-      .trim()
-      .split(/\r?\n/)
-      .filter(Boolean);
+  const [file, setFile] =
+    useState(null);
 
-    if (lines.length < 2) {
-      throw new Error(
-        "CSV file is empty or contains no data."
-      );
-    }
+  const [dataset, setDataset] =
+    useState(null);
 
-    const headers = lines[0]
-      .split(",")
-      .map((header) => header.trim());
+  const [error, setError] =
+    useState("");
 
-    const rows = lines.slice(1).map((line) => {
-      const values = line.split(",");
-      const row = {};
+  const [loading, setLoading] =
+    useState(false);
 
-      headers.forEach((header, index) => {
-        row[header] =
-          values[index]?.trim() ?? "";
-      });
 
-      return row;
-    });
+  const handleFileChange = (
+    event
+  ) => {
 
-    return {
-      headers,
-      rows,
-    };
-  };
-
-  const handleFileChange = (event) => {
     const selectedFile =
       event.target.files?.[0];
 
@@ -59,79 +63,193 @@ const UploadData = () => {
         .toLowerCase()
         .endsWith(".csv")
     ) {
-      setError("Please upload a CSV file.");
+
+      setError(
+        "Please upload a CSV file."
+      );
+
       return;
     }
 
-    if (selectedFile.size === 0) {
-      setError("The selected file is empty.");
+    if (
+      selectedFile.size === 0
+    ) {
+
+      setError(
+        "The selected file is empty."
+      );
+
       return;
     }
 
-    setFile(selectedFile);
+    setFile(
+      selectedFile
+    );
   };
 
+
   const handleUpload = () => {
+
     if (!file) {
+
       setError(
         "Please select a CSV file first."
       );
+
       return;
     }
 
     setLoading(true);
     setError("");
 
-    const reader = new FileReader();
+    Papa.parse(
+      file,
+      {
 
-    reader.onload = (event) => {
-      try {
-        const text = event.target.result;
+        header: true,
 
-        const parsed = parseCSV(text);
+        skipEmptyLines: true,
 
-        const datasetInfo = {
-          fileName: file.name,
-          rows: parsed.rows.length,
-          columns: parsed.headers.length,
-          headers: parsed.headers,
-          preview: parsed.rows.slice(0, 10),
-          uploadedAt:
-            new Date().toISOString(),
-        };
+        dynamicTyping: true,
 
-        saveDataset(datasetInfo);
+        complete:
+          async (result) => {
 
-        setDataset(datasetInfo);
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
+            try {
 
-        setError(
-          err.message ||
-            "Unable to process CSV file."
-        );
+              if (
+                result.errors.length
+                > 0
+              ) {
 
-        setLoading(false);
+                throw new Error(
+                  result.errors[0].message
+                );
+
+              }
+
+              const rows =
+                result.data;
+
+              if (!rows.length) {
+
+                throw new Error(
+                  "CSV contains no data rows."
+                );
+
+              }
+
+              const headers =
+                result.meta.fields || [];
+
+              const missing =
+                REQUIRED_COLUMNS.filter(
+                  (column) =>
+                    !headers.includes(
+                      column
+                    )
+                );
+
+              if (missing.length) {
+
+                throw new Error(
+                  `Missing required columns: ${missing.join(
+                    ", "
+                  )}`
+                );
+
+              }
+
+              const response =
+                await uploadDataset(
+                  file.name,
+                  rows
+                );
+
+              const datasetInfo = {
+
+                fileName:
+                  file.name,
+
+                rows:
+                  response.rows,
+
+                columns:
+                  headers.length,
+
+                headers,
+
+                preview:
+                  rows.slice(0, 10),
+
+                uploadedAt:
+                  new Date().toISOString(),
+
+                positiveITE:
+                  response.positive_ite,
+
+                negativeITE:
+                  response.negative_ite,
+
+                meanITE:
+                  response.mean_ite
+
+              };
+
+              saveDataset(
+                datasetInfo
+              );
+
+              setDataset(
+                datasetInfo
+              );
+
+            } catch (err) {
+
+              console.error(
+                "Dataset upload error:",
+                err
+              );
+
+              setError(
+                err.message ||
+                  "Unable to upload and analyze the dataset."
+              );
+
+            } finally {
+
+              setLoading(false);
+
+            }
+
+          },
+
+        error:
+          (err) => {
+
+            setError(
+              err.message ||
+                "Unable to read the CSV file."
+            );
+
+            setLoading(false);
+
+          }
+
       }
-    };
+    );
 
-    reader.onerror = () => {
-      setError(
-        "Unable to read the selected file."
-      );
-
-      setLoading(false);
-    };
-
-    reader.readAsText(file);
   };
 
+
   return (
+
     <div className="upload-page">
+
       <div className="upload-container">
 
         <div className="page-header">
+
           <span className="page-label">
             DATA MANAGEMENT
           </span>
@@ -142,9 +260,12 @@ const UploadData = () => {
 
           <p>
             Upload historical customer campaign
-            data for validation and analysis.
+            data. The backend will store the
+            dataset and run fresh causal analysis.
           </p>
+
         </div>
+
 
         <div className="upload-card">
 
@@ -159,8 +280,11 @@ const UploadData = () => {
             </h3>
 
             <p>
-              Upload your cleaned retail
-              campaign dataset.
+              Required columns:
+              {" "}
+              {REQUIRED_COLUMNS.join(
+                ", "
+              )}
             </p>
 
             <span className="file-button">
@@ -170,13 +294,18 @@ const UploadData = () => {
             <input
               type="file"
               accept=".csv,text/csv"
-              onChange={handleFileChange}
+              onChange={
+                handleFileChange
+              }
             />
 
           </label>
 
+
           {file && (
+
             <div className="selected-file">
+
               <span>
                 Selected file
               </span>
@@ -184,116 +313,214 @@ const UploadData = () => {
               <strong>
                 {file.name}
               </strong>
+
             </div>
+
           )}
 
+
           {error && (
+
             <div className="error-message">
               {error}
             </div>
+
           )}
+
 
           <button
             className="primary-button upload-button"
             onClick={handleUpload}
-            disabled={!file || loading}
+            disabled={
+              !file || loading
+            }
           >
+
             {loading
-              ? "Processing..."
-              : "Upload & Validate"}
+              ? "Uploading & Running Causal Analysis..."
+              : "Upload & Analyze"}
+
           </button>
 
         </div>
 
+
         {dataset && (
+
           <div className="dataset-result">
 
             <div className="success-message">
-              ✓ Dataset uploaded and validated
+
+              ✓ Dataset uploaded and
+              causal analysis completed
               successfully.
+
             </div>
+
 
             <div className="dataset-stats">
 
               <div>
-                <span>Rows</span>
+
+                <span>
+                  Rows
+                </span>
+
                 <strong>
-                  {dataset.rows}
+                  {dataset.rows.toLocaleString()}
                 </strong>
+
               </div>
 
+
               <div>
-                <span>Columns</span>
+
+                <span>
+                  Columns
+                </span>
+
                 <strong>
                   {dataset.columns}
                 </strong>
+
               </div>
+
 
               <div>
-                <span>File</span>
+
+                <span>
+                  Positive ITE
+                </span>
+
                 <strong>
-                  {dataset.fileName}
+                  {dataset.positiveITE.toLocaleString()}
                 </strong>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  Negative ITE
+                </span>
+
+                <strong>
+                  {dataset.negativeITE.toLocaleString()}
+                </strong>
+
               </div>
 
             </div>
+
 
             <div className="columns-section">
-              <h2>Columns</h2>
+
+              <h2>
+                Columns
+              </h2>
 
               <div className="column-list">
+
                 {dataset.headers.map(
                   (column) => (
-                    <span key={column}>
+
+                    <span
+                      key={column}
+                    >
                       {column}
                     </span>
+
                   )
                 )}
+
               </div>
+
             </div>
 
+
             <div className="preview-section">
-              <h2>Data Preview</h2>
+
+              <h2>
+                Data Preview
+              </h2>
 
               <div className="table-wrapper">
+
                 <table>
+
                   <thead>
+
                     <tr>
+
                       {dataset.headers.map(
                         (column) => (
-                          <th key={column}>
+
+                          <th
+                            key={column}
+                          >
                             {column}
                           </th>
+
                         )
                       )}
+
                     </tr>
+
                   </thead>
 
+
                   <tbody>
+
                     {dataset.preview.map(
-                      (row, rowIndex) => (
-                        <tr key={rowIndex}>
+                      (
+                        row,
+                        index
+                      ) => (
+
+                        <tr
+                          key={index}
+                        >
+
                           {dataset.headers.map(
                             (column) => (
-                              <td key={column}>
-                                {row[column]}
+
+                              <td
+                                key={column}
+                              >
+                                {String(
+                                  row[column]
+                                  ?? ""
+                                )}
                               </td>
+
                             )
                           )}
+
                         </tr>
+
                       )
                     )}
+
                   </tbody>
+
                 </table>
+
               </div>
+
             </div>
 
           </div>
+
         )}
 
       </div>
+
     </div>
+
   );
+
 };
+
 
 export default UploadData;

@@ -1,488 +1,439 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState
+} from "react";
+
 import Plot from "react-plotly.js";
+
+import {
+  getInsights
+} from "../services/api";
+
 import "./Insights.css";
 
+
 const Insights = () => {
-  const [qiniData, setQiniData] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  // -----------------------------
-  // FILTERS
-  // -----------------------------
+  const [qiniData, setQiniData] =
+    useState(null);
 
-  const [targetingFilter, setTargetingFilter] = useState("100");
+  const [targetingFilter, setTargetingFilter] =
+    useState("100");
 
-  const [decileFilter, setDecileFilter] = useState("all");
+  const [decileFilter, setDecileFilter] =
+    useState("all");
 
-  // -----------------------------
-  // LOAD QINI DATA
-  // -----------------------------
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+
+  const loadInsights = async () => {
+
+    try {
+
+      setLoading(true);
+      setError("");
+
+      const result =
+        await getInsights();
+
+      setQiniData(
+        result
+      );
+
+    } catch (err) {
+
+      setError(
+        err.message ||
+          "Unable to load live causal insights."
+      );
+
+      setQiniData(null);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
 
   useEffect(() => {
-    const loadQiniData = async () => {
-      try {
-        setLoading(true);
-        setError("");
 
-        const response = await fetch("./data/qini_curve_data.json");
+    loadInsights();
 
-        if (!response.ok) {
-          throw new Error(
-            `Unable to load Qini data. HTTP ${response.status}`
-          );
-        }
-
-        const data = await response.json();
-
-        console.log("Qini data loaded:", data);
-
-        if (
-          !Array.isArray(data.fractions) ||
-          !Array.isArray(data.qini_values) ||
-          !Array.isArray(data.random_baseline)
-        ) {
-          throw new Error(
-            "Invalid Qini data format. Required fields: fractions, qini_values, random_baseline."
-          );
-        }
-
-        if (
-          data.fractions.length !== data.qini_values.length ||
-          data.fractions.length !== data.random_baseline.length
-        ) {
-          throw new Error(
-            "Qini data arrays have different lengths."
-          );
-        }
-
-        setQiniData(data);
-      } catch (err) {
-        console.error("Qini loading error:", err);
-
-        setError(
-          err.message ||
-            "Unable to load causal analysis results."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadQiniData();
   }, []);
 
-  // -----------------------------
-  // FILTERED ANALYSIS
-  // -----------------------------
 
   const analysis = useMemo(() => {
-    if (!qiniData) return null;
 
-    const fractions = qiniData.fractions;
-    const qiniValues = qiniData.qini_values;
-    const randomBaseline = qiniData.random_baseline;
+    if (!qiniData) {
+      return null;
+    }
 
-    // -----------------------------
-    // TARGETING FILTER
-    // -----------------------------
 
-    const maxTargeting = Number(targetingFilter) / 100;
+    const maxTargeting =
+      Number(
+        targetingFilter
+      ) / 100;
 
-    const filteredIndexes = fractions
-      .map((fraction, index) => ({
-        fraction,
-        index,
-      }))
-      .filter(
-        ({ fraction }) =>
-          fraction <= maxTargeting
+
+    const indexes =
+      qiniData.fractions
+
+        .map(
+          (
+            fraction,
+            index
+          ) => ({
+            fraction,
+            index
+          })
+        )
+
+        .filter(
+          ({ fraction }) =>
+            fraction <=
+            maxTargeting
+        );
+
+
+    const fractions =
+      indexes.map(
+        (item) =>
+          item.fraction
       );
 
-    const filteredFractions = filteredIndexes.map(
-      ({ fraction }) => fraction
-    );
 
-    const filteredQiniValues = filteredIndexes.map(
-      ({ index }) => qiniValues[index]
-    );
-
-    const filteredRandomBaseline =
-      filteredIndexes.map(
-        ({ index }) => randomBaseline[index]
+    const qiniValues =
+      indexes.map(
+        (item) =>
+          qiniData.qini_values[
+            item.index
+          ]
       );
 
-    // -----------------------------
-    // MAXIMUM QINI
-    // -----------------------------
 
-    const maxQini = Math.max(
-      ...filteredQiniValues
-    );
+    const randomBaseline =
+      indexes.map(
+        (item) =>
+          qiniData.random_baseline[
+            item.index
+          ]
+      );
 
-    const maxQiniIndex =
-      filteredQiniValues.indexOf(maxQini);
+
+    const maxQini =
+      Math.max(
+        ...qiniValues
+      );
+
+
+    const bestIndex =
+      qiniValues.indexOf(
+        maxQini
+      );
+
 
     const bestTargeting =
-      filteredFractions[maxQiniIndex] * 100;
+      fractions[
+        bestIndex
+      ] * 100;
+
 
     const randomAtBest =
-      filteredRandomBaseline[maxQiniIndex];
+      randomBaseline[
+        bestIndex
+      ];
+
 
     const improvement =
       randomAtBest !== 0
-        ? ((maxQini - randomAtBest) /
-            Math.abs(randomAtBest)) *
-          100
+
+        ? (
+            (
+              maxQini
+              -
+              randomAtBest
+            )
+            /
+            Math.abs(
+              randomAtBest
+            )
+          ) * 100
+
         : 0;
 
-    // -----------------------------
-    // UPLIFT DATA
-    // -----------------------------
 
-    const upliftByDecile =
-      qiniData.uplift_by_decile || {};
-
-    let decileEntries =
-      Object.entries(upliftByDecile);
-
-    // Apply decile filter
-    if (decileFilter !== "all") {
-      decileEntries =
-        decileEntries.filter(
-          ([decile]) =>
-            Number(decile) + 1 ===
-            Number(decileFilter)
-        );
-    }
-
-    // -----------------------------
-    // BEST DECILE
-    // -----------------------------
-
-    let bestDecile = null;
-
-    if (decileEntries.length > 0) {
-      bestDecile = decileEntries.reduce(
-        (best, current) =>
-          Number(current[1]) >
-          Number(best[1])
-            ? current
-            : best
+    let upliftEntries =
+      Object.entries(
+        qiniData.uplift_by_decile
+        || {}
       );
+
+
+    if (
+      decileFilter !== "all"
+    ) {
+
+      upliftEntries =
+        upliftEntries.filter(
+          ([decile]) =>
+            Number(decile)
+            + 1
+            ===
+            Number(
+              decileFilter
+            )
+        );
+
     }
+
+
+    const allDeciles =
+      Object.entries(
+        qiniData.uplift_by_decile
+        || {}
+      );
+
+
+    const bestDecile =
+      allDeciles.length
+
+        ? allDeciles.reduce(
+            (
+              best,
+              current
+            ) =>
+              Number(
+                current[1]
+              )
+              >
+              Number(
+                best[1]
+              )
+                ? current
+                : best
+          )
+
+        : null;
+
 
     return {
-      fractions: filteredFractions,
-      qiniValues: filteredQiniValues,
-      randomBaseline: filteredRandomBaseline,
 
-      upliftEntries: decileEntries,
+      fractions,
+
+      qiniValues,
+
+      randomBaseline,
 
       maxQini,
+
       bestTargeting,
+
       randomAtBest,
+
       improvement,
-      bestDecile,
+
+      upliftEntries,
+
+      bestDecile
+
     };
+
   }, [
     qiniData,
     targetingFilter,
-    decileFilter,
+    decileFilter
   ]);
 
-  // -----------------------------
-  // LOADING STATE
-  // -----------------------------
 
   if (loading) {
+
     return (
+
       <div className="insights-page">
+
         <div className="insights-container">
 
-          <div className="page-header">
-            <div>
-              <span className="page-label">
-                CAUSAL ANALYSIS
-              </span>
+          <div className="chart-card">
 
-              <h1>Causal Insights</h1>
+            <h2>
+              Loading live causal insights...
+            </h2>
 
-              <p>
-                Double Machine Learning based
-                treatment-effect analysis.
-              </p>
-            </div>
-          </div>
-
-          <div className="loading-card">
-            Loading causal analysis results...
           </div>
 
         </div>
+
       </div>
+
     );
+
   }
 
-  // -----------------------------
-  // ERROR STATE
-  // -----------------------------
 
   if (error) {
+
     return (
+
       <div className="insights-page">
+
         <div className="insights-container">
 
-          <div className="page-header">
-            <div>
-              <span className="page-label">
-                CAUSAL ANALYSIS
-              </span>
+          <div className="chart-card">
 
-              <h1>Causal Insights</h1>
-
-              <p>
-                Double Machine Learning based
-                treatment-effect analysis.
-              </p>
-            </div>
-          </div>
-
-          <div className="error-card">
-
-            <div className="error-icon">
-              !
-            </div>
-
-            <h3>
-              Unable to load results
-            </h3>
+            <h2>
+              No live analysis available
+            </h2>
 
             <p>
               {error}
             </p>
 
-            <div className="error-help">
-
-              <strong>
-                Expected JSON structure:
-              </strong>
-
-              <pre>
-{`{
-  "fractions": [...],
-  "qini_values": [...],
-  "random_baseline": [...],
-  "uplift_by_decile": {...}
-}`}
-              </pre>
-
-              <p>
-                Your file should be located at:
-              </p>
-
-              <code>
-                frontend/public/qini_curve_data.json
-              </code>
-
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-    );
-  }
-
-  // -----------------------------
-  // SAFETY CHECK
-  // -----------------------------
-
-  if (!analysis) {
-    return null;
-  }
-
-  return (
-    <div className="insights-page">
-
-      <div className="insights-container">
-
-        {/* =========================================
-            HEADER
-        ========================================== */}
-
-        <div className="page-header">
-
-          <div>
-
-            <span className="page-label">
-              CAUSAL ANALYSIS
-            </span>
-
-            <h1>
-              Causal Insights
-            </h1>
-
-            <p>
-              Double Machine Learning based
-              treatment-effect and uplift analysis.
-            </p>
-
-          </div>
-
-          <div className="status-badge">
-            <span>●</span>
-            Model Results Loaded
-          </div>
-
-        </div>
-
-
-        {/* =========================================
-            FILTERS
-        ========================================== */}
-
-        <section className="insights-filter-card">
-
-          <div className="filter-heading">
-
-            <div>
-
-              <span className="chart-label">
-                ANALYSIS FILTERS
-              </span>
-
-              <h2>
-                Filter Causal Results
-              </h2>
-
-              <p>
-                Adjust the targeting range and
-                customer uplift segment.
-              </p>
-
-            </div>
-
             <button
-              className="reset-filter-button"
-              onClick={() => {
-                setTargetingFilter("100");
-                setDecileFilter("all");
-              }}
+              className="primary-button"
+              onClick={
+                loadInsights
+              }
             >
-              Reset Filters
+              Retry
             </button>
 
           </div>
 
+        </div>
 
-          <div className="filter-grid">
+      </div>
 
-            {/* Targeting Filter */}
+    );
 
-            <div className="filter-group">
-
-              <label htmlFor="targeting-filter">
-                Maximum Targeting Range
-              </label>
-
-              <select
-                id="targeting-filter"
-                value={targetingFilter}
-                onChange={(e) =>
-                  setTargetingFilter(e.target.value)
-                }
-              >
-
-                <option value="100">
-                  All Customers
-                </option>
-
-                <option value="10">
-                  Top 10%
-                </option>
-
-                <option value="20">
-                  Top 20%
-                </option>
-
-                <option value="30">
-                  Top 30%
-                </option>
-
-                <option value="40">
-                  Top 40%
-                </option>
-
-                <option value="50">
-                  Top 50%
-                </option>
-
-                <option value="60">
-                  Top 60%
-                </option>
-
-                <option value="70">
-                  Top 70%
-                </option>
-
-                <option value="80">
-                  Top 80%
-                </option>
-
-                <option value="90">
-                  Top 90%
-                </option>
-
-              </select>
-
-            </div>
+  }
 
 
-            {/* Decile Filter */}
+  return (
 
-            <div className="filter-group">
+    <div className="insights-page">
 
-              <label htmlFor="decile-filter">
-                Customer Uplift Segment
-              </label>
+      <div className="insights-container">
 
-              <select
-                id="decile-filter"
-                value={decileFilter}
-                onChange={(e) =>
-                  setDecileFilter(e.target.value)
-                }
-              >
+        <div className="page-header">
 
-                <option value="all">
-                  All Deciles
-                </option>
+          <span className="page-label">
+            CAUSAL ANALYSIS
+          </span>
 
-                {Array.from(
-                  { length: 10 },
-                  (_, index) => (
-                    <option
-                      key={index + 1}
-                      value={index + 1}
-                    >
-                      Decile {index + 1}
-                    </option>
-                  )
-                )}
+          <h1>
+            Live Causal Insights
+          </h1>
 
-              </select>
+          <p>
+            Qini and uplift results are
+            calculated by the backend
+            from the latest uploaded dataset.
+          </p>
 
-            </div>
+        </div>
+
+
+        <section className="filters-card">
+
+          <div>
+
+            <label>
+              Maximum Targeting Range
+            </label>
+
+            <select
+              value={
+                targetingFilter
+              }
+              onChange={(e) =>
+                setTargetingFilter(
+                  e.target.value
+                )
+              }
+            >
+
+              {[25, 50, 75, 100].map(
+                (value) => (
+
+                  <option
+                    key={value}
+                    value={value}
+                  >
+                    {value}%
+                  </option>
+
+                )
+              )}
+
+            </select>
 
           </div>
 
+
+          <div>
+
+            <label>
+              Decile
+            </label>
+
+            <select
+              value={
+                decileFilter
+              }
+              onChange={(e) =>
+                setDecileFilter(
+                  e.target.value
+                )
+              }
+            >
+
+              <option value="all">
+                All Deciles
+              </option>
+
+              {Object.keys(
+                qiniData.uplift_by_decile
+                || {}
+              ).map(
+                (key) => (
+
+                  <option
+                    key={key}
+                    value={
+                      Number(key) + 1
+                    }
+                  >
+                    Decile{" "}
+                    {Number(key) + 1}
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </div>
+
+
+          <button
+            className="primary-button"
+            onClick={
+              loadInsights
+            }
+          >
+            ↻ Refresh
+          </button>
+
         </section>
 
-
-        {/* =========================================
-            SUMMARY CARDS
-        ========================================== */}
 
         <div className="insight-grid">
 
@@ -514,7 +465,7 @@ const Insights = () => {
             </strong>
 
             <small>
-              Customers targeted at maximum Qini
+              At maximum Qini
             </small>
 
           </div>
@@ -523,15 +474,17 @@ const Insights = () => {
           <div className="insight-card">
 
             <span className="card-label">
-              Qini Data Points
+              Customers Analyzed
             </span>
 
             <strong>
-              {analysis.fractions.length}
+              {Number(
+                qiniData.customers
+              ).toLocaleString()}
             </strong>
 
             <small>
-              Model evaluation points
+              Rows in current upload
             </small>
 
           </div>
@@ -548,7 +501,7 @@ const Insights = () => {
             </strong>
 
             <small>
-              At the best targeting point
+              At best targeting point
             </small>
 
           </div>
@@ -565,7 +518,7 @@ const Insights = () => {
             </strong>
 
             <small>
-              Improvement over random baseline
+              Versus random baseline
             </small>
 
           </div>
@@ -580,9 +533,11 @@ const Insights = () => {
             <strong>
 
               {analysis.bestDecile
-                ? `D${Number(
-                    analysis.bestDecile[0]
-                  ) + 1}`
+                ? `D${
+                    Number(
+                      analysis.bestDecile[0]
+                    ) + 1
+                  }`
                 : "N/A"}
 
             </strong>
@@ -590,11 +545,14 @@ const Insights = () => {
             <small>
 
               {analysis.bestDecile
-                ? `${(
-                    Number(
-                      analysis.bestDecile[1]
-                    ) * 100
-                  ).toFixed(2)}% uplift`
+                ? `${
+                    (
+                      Number(
+                        analysis.bestDecile[1]
+                      )
+                      * 100
+                    ).toFixed(2)
+                  }% uplift`
                 : "No decile data"}
 
             </small>
@@ -604,30 +562,23 @@ const Insights = () => {
         </div>
 
 
-        {/* =========================================
-            QINI CURVE
-        ========================================== */}
-
         <section className="chart-card">
 
           <div className="chart-header">
 
-            <div>
+            <span className="chart-label">
+              MODEL PERFORMANCE
+            </span>
 
-              <span className="chart-label">
-                MODEL PERFORMANCE
-              </span>
+            <h2>
+              Qini Curve
+            </h2>
 
-              <h2>
-                Qini Curve
-              </h2>
-
-              <p>
-                Compares the causal model against
-                random customer targeting.
-              </p>
-
-            </div>
+            <p>
+              Live comparison of the causal
+              ranking against the random
+              targeting baseline.
+            </p>
 
           </div>
 
@@ -635,46 +586,66 @@ const Insights = () => {
           <Plot
 
             data={[
+
               {
-                x: analysis.fractions.map(
-                  (value) => value * 100
-                ),
 
-                y: analysis.qiniValues,
+                x:
+                  analysis.fractions.map(
+                    (value) =>
+                      value * 100
+                  ),
 
-                type: "scatter",
+                y:
+                  analysis.qiniValues,
 
-                mode: "lines+markers",
+                type:
+                  "scatter",
 
-                name: "Causal Model",
+                mode:
+                  "lines+markers",
+
+                name:
+                  "Causal Model",
 
                 line: {
-                  width: 3,
+                  width: 3
                 },
 
                 marker: {
-                  size: 5,
-                },
+                  size: 5
+                }
+
               },
 
               {
-                x: analysis.fractions.map(
-                  (value) => value * 100
-                ),
 
-                y: analysis.randomBaseline,
+                x:
+                  analysis.fractions.map(
+                    (value) =>
+                      value * 100
+                  ),
 
-                type: "scatter",
+                y:
+                  analysis.randomBaseline,
 
-                mode: "lines",
+                type:
+                  "scatter",
 
-                name: "Random Targeting",
+                mode:
+                  "lines",
+
+                name:
+                  "Random Targeting",
 
                 line: {
-                  dash: "dash",
-                  width: 2,
-                },
-              },
+                  dash:
+                    "dash",
+
+                  width: 2
+                }
+
+              }
+
             ]}
 
             layout={{
@@ -682,39 +653,52 @@ const Insights = () => {
               autosize: true,
 
               xaxis: {
+
                 title:
                   "Customers Targeted (%)",
 
-                ticksuffix: "%",
+                ticksuffix:
+                  "%"
+
               },
 
               yaxis: {
+
                 title:
-                  "Cumulative Qini Value",
+                  "Cumulative Qini Value"
+
               },
 
-              hovermode: "x unified",
+              hovermode:
+                "x unified",
 
               legend: {
-                orientation: "h",
-                y: 1.1,
+
+                orientation:
+                  "h",
+
+                y:
+                  1.1
+
               },
 
               margin: {
+
                 l: 70,
+
                 r: 30,
+
                 t: 40,
-                b: 70,
+
+                b: 70
+
               },
 
-              paper_bgcolor: "transparent",
+              paper_bgcolor:
+                "transparent",
 
-              plot_bgcolor: "transparent",
-
-              font: {
-                family:
-                  "Inter, Arial, sans-serif",
-              },
+              plot_bgcolor:
+                "transparent"
 
             }}
 
@@ -722,12 +706,12 @@ const Insights = () => {
 
             style={{
               width: "100%",
-              height: "450px",
+              height: "450px"
             }}
 
             config={{
               responsive: true,
-              displaylogo: false,
+              displaylogo: false
             }}
 
           />
@@ -735,30 +719,23 @@ const Insights = () => {
         </section>
 
 
-        {/* =========================================
-            UPLIFT BY DECILE
-        ========================================== */}
-
         <section className="chart-card">
 
           <div className="chart-header">
 
-            <div>
+            <span className="chart-label">
+              CUSTOMER SEGMENTATION
+            </span>
 
-              <span className="chart-label">
-                CUSTOMER SEGMENTATION
-              </span>
+            <h2>
+              Uplift by Decile
+            </h2>
 
-              <h2>
-                Uplift by Decile
-              </h2>
-
-              <p>
-                Estimated treatment uplift for each
-                customer segment ranked by causal effect.
-              </p>
-
-            </div>
+            <p>
+              Estimated treatment uplift for
+              customers ranked by the current
+              causal model.
+            </p>
 
           </div>
 
@@ -766,26 +743,37 @@ const Insights = () => {
           <Plot
 
             data={[
+
               {
 
-                x: analysis.upliftEntries.map(
-                  ([decile]) =>
-                    `D${Number(decile) + 1}`
-                ),
+                x:
+                  analysis.upliftEntries.map(
+                    ([decile]) =>
+                      `D${
+                        Number(decile) + 1
+                      }`
+                  ),
 
-                y: analysis.upliftEntries.map(
-                  ([, value]) =>
-                    Number(value) * 100
-                ),
+                y:
+                  analysis.upliftEntries.map(
+                    ([, value]) =>
+                      Number(value)
+                      * 100
+                  ),
 
-                type: "bar",
+                type:
+                  "bar",
 
-                name: "Customer Uplift",
+                name:
+                  "Customer Uplift",
 
                 hovertemplate:
                   "Segment %{x}<br>" +
-                  "Uplift: %{y:.2f}%<extra></extra>",
-              },
+                  "Uplift: %{y:.2f}%" +
+                  "<extra></extra>"
+
+              }
+
             ]}
 
             layout={{
@@ -794,31 +782,36 @@ const Insights = () => {
 
               xaxis: {
                 title:
-                  "Customer Decile",
+                  "Customer Decile"
               },
 
               yaxis: {
+
                 title:
                   "Estimated Uplift (%)",
 
-                ticksuffix: "%",
+                ticksuffix:
+                  "%"
+
               },
 
               margin: {
+
                 l: 70,
+
                 r: 30,
+
                 t: 30,
-                b: 70,
+
+                b: 70
+
               },
 
-              paper_bgcolor: "transparent",
+              paper_bgcolor:
+                "transparent",
 
-              plot_bgcolor: "transparent",
-
-              font: {
-                family:
-                  "Inter, Arial, sans-serif",
-              },
+              plot_bgcolor:
+                "transparent"
 
             }}
 
@@ -826,22 +819,18 @@ const Insights = () => {
 
             style={{
               width: "100%",
-              height: "420px",
+              height: "420px"
             }}
 
             config={{
               responsive: true,
-              displaylogo: false,
+              displaylogo: false
             }}
 
           />
 
         </section>
 
-
-        {/* =========================================
-            BUSINESS INTERPRETATION
-        ========================================== */}
 
         <section className="interpretation-card">
 
@@ -861,20 +850,20 @@ const Insights = () => {
           <p>
 
             The Double Machine Learning model
-            estimates the causal effect of the
-            campaign treatment on customer outcomes
-            while accounting for observed customer
-            characteristics.
+            estimates the causal effect of discount
+            treatment on purchase probability while
+            accounting for the observed customer
+            characteristics used by the project.
 
           </p>
 
 
           <p>
 
-            The Qini curve measures how effectively
-            the model ranks customers according to
-            their expected incremental treatment
-            benefit.
+            The Qini curve evaluates whether the
+            model ranks customers so that
+            higher-uplift customers are concentrated
+            earlier in the targeting list.
 
           </p>
 
@@ -887,14 +876,14 @@ const Insights = () => {
 
             <p>
 
-              The highest Qini value in the selected
-              range occurs when approximately{" "}
+              The highest Qini value in the
+              selected range occurs at approximately{" "}
 
               <strong>
                 {analysis.bestTargeting.toFixed(1)}%
               </strong>{" "}
 
-              of customers are targeted.
+              of customers targeted.
 
             </p>
 
@@ -909,7 +898,7 @@ const Insights = () => {
 
             <p>
 
-              The strongest customer segment is{" "}
+              The strongest segment is{" "}
 
               <strong>
 
@@ -923,12 +912,15 @@ const Insights = () => {
 
               </strong>
 
-              {analysis.bestDecile &&
-                `, with an estimated uplift of ${(
-                  Number(
-                    analysis.bestDecile[1]
-                  ) * 100
-                ).toFixed(2)}%.`}
+              {analysis.bestDecile
+                ? `, with estimated uplift of ${
+                    (
+                      Number(
+                        analysis.bestDecile[1]
+                      ) * 100
+                    ).toFixed(2)
+                  }%.`
+                : "."}
 
             </p>
 
@@ -943,12 +935,11 @@ const Insights = () => {
 
             <p>
 
-              A positive estimated uplift means
-              the treatment is predicted to provide
-              additional benefit for that customer
-              segment. Negative uplift suggests that
-              targeting that segment may be less
-              beneficial.
+              These are causal estimates from
+              the uploaded dataset. A positive
+              ITE indicates predicted benefit
+              from treatment; it is not a guarantee
+              of an individual customer's outcome.
 
             </p>
 
@@ -959,7 +950,10 @@ const Insights = () => {
       </div>
 
     </div>
+
   );
+
 };
+
 
 export default Insights;

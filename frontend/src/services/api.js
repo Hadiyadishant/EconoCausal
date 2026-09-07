@@ -11,56 +11,146 @@ async function request(endpoint, options = {}) {
         ...(options.headers || {}),
       },
     });
-  } catch (err) {
-    // Network-level failure (server not running, CORS blocked, offline, etc.)
+  } catch (error) {
     throw new Error(
-      "Unable to reach the EconoCausal API. Make sure the FastAPI server is running at " +
-        API_URL +
-        "."
+      `Unable to reach the EconoCausal API. Make sure FastAPI is running at ${API_URL}.`
     );
   }
 
   let data = null;
+
   try {
     data = await response.json();
-  } catch (err) {
-    // Response wasn't JSON at all
+  } catch {
     data = null;
   }
 
   if (!response.ok) {
     throw new Error(
-      data?.detail || `API request failed (HTTP ${response.status}).`
+      data?.detail ||
+        `API request failed (HTTP ${response.status}).`
     );
   }
 
   return data;
 }
 
+
+/* =========================================================
+   HEALTH
+========================================================= */
+
 export async function getHealth() {
   return request("/health");
 }
 
-export async function getPrescription(customerId = null) {
-  const endpoint = customerId
-    ? `/prescription?customer_id=${customerId}`
-    : "/prescription";
 
-  return request(endpoint);
+/* =========================================================
+   DATASET
+========================================================= */
+
+export async function uploadDataset(fileName, data) {
+  return request("/dataset/upload", {
+    method: "POST",
+    body: JSON.stringify({
+      file_name: fileName,
+      data: data,
+    }),
+  });
 }
+
+
+export async function getDatasetStatus() {
+  return request("/dataset/status");
+}
+
+
+/* =========================================================
+   INSIGHTS
+========================================================= */
+
+export async function getInsights() {
+  return request("/insights");
+}
+
+
+/* =========================================================
+   ITE PREDICTION
+========================================================= */
 
 export async function predictITE(customers) {
   return request("/predict", {
     method: "POST",
-    body: JSON.stringify({ customers }),
+    body: JSON.stringify({
+      customers: customers,
+    }),
   });
 }
+
+
+/* =========================================================
+   BUDGET
+========================================================= */
+
+export async function getBudget() {
+  return request("/budget");
+}
+
+
+export async function optimizeBudget(
+  totalBudget,
+  maxCustomers = null
+) {
+  return request("/optimize", {
+    method: "POST",
+    body: JSON.stringify({
+      total_budget: Number(totalBudget),
+
+      max_customers:
+        maxCustomers === "" ||
+        maxCustomers === null
+          ? null
+          : Number(maxCustomers),
+    }),
+  });
+}
+
+
+/* =========================================================
+   PRESCRIPTION
+========================================================= */
+
+export async function getPrescription(
+  customerId = null
+) {
+  const endpoint =
+    customerId !== null &&
+    customerId !== ""
+      ? `/prescription?customer_id=${encodeURIComponent(
+          customerId
+        )}`
+      : "/prescription";
+
+  return request(endpoint);
+}
+
+
+/* =========================================================
+   DRIFT MONITORING
+========================================================= */
 
 export async function checkDrift(data) {
   return request("/drift", {
     method: "POST",
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({
+      data: data,
+    }),
   });
 }
+
+
+/* =========================================================
+   DEFAULT EXPORT
+========================================================= */
 
 export default API_URL;
