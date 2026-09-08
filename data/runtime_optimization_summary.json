@@ -1,0 +1,23 @@
+{
+  "customers": 5000,
+  "customers_allocated": 540,
+  "allocation_rate": 10.8,
+  "average_discount": 3.24,
+  "predicted_revenue": 92532.69,
+  "marketing_cost": 5721.69,
+  "total_budget": 6500.0,
+  "remaining_budget": 778.3100000000004,
+  "max_customers": 540,
+  "discount_levels": [
+    0.0,
+    5.0,
+    10.0,
+    15.0,
+    20.0,
+    25.0,
+    30.0
+  ],
+  "optimization_status": "optimal",
+  "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+  "source": "customer_optimizer_matrices_final.npz"
+}

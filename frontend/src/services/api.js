@@ -13,7 +13,7 @@ async function request(endpoint, options = {}) {
     });
   } catch (error) {
     throw new Error(
-      `Unable to reach the EconoCausal API. Make sure FastAPI is running at ${API_URL}.`
+      `Unable to reach the EconoCausal API. Make sure the FastAPI server is running at ${API_URL}.`
     );
   }
 
@@ -36,25 +36,25 @@ async function request(endpoint, options = {}) {
 }
 
 
-/* =========================================================
-   HEALTH
-========================================================= */
+// =========================================================
+// HEALTH
+// =========================================================
 
 export async function getHealth() {
   return request("/health");
 }
 
 
-/* =========================================================
-   DATASET
-========================================================= */
+// =========================================================
+// DATASET
+// =========================================================
 
 export async function uploadDataset(fileName, data) {
   return request("/dataset/upload", {
     method: "POST",
     body: JSON.stringify({
       file_name: fileName,
-      data: data,
+      data,
     }),
   });
 }
@@ -65,32 +65,32 @@ export async function getDatasetStatus() {
 }
 
 
-/* =========================================================
-   INSIGHTS
-========================================================= */
+// =========================================================
+// INSIGHTS
+// =========================================================
 
 export async function getInsights() {
   return request("/insights");
 }
 
 
-/* =========================================================
-   ITE PREDICTION
-========================================================= */
+// =========================================================
+// ITE PREDICTION
+// =========================================================
 
 export async function predictITE(customers) {
   return request("/predict", {
     method: "POST",
     body: JSON.stringify({
-      customers: customers,
+      customers,
     }),
   });
 }
 
 
-/* =========================================================
-   BUDGET
-========================================================= */
+// =========================================================
+// BUDGET
+// =========================================================
 
 export async function getBudget() {
   return request("/budget");
@@ -116,9 +116,9 @@ export async function optimizeBudget(
 }
 
 
-/* =========================================================
-   PRESCRIPTION
-========================================================= */
+// =========================================================
+// PRESCRIPTION
+// =========================================================
 
 export async function getPrescription(
   customerId = null
@@ -135,22 +135,18 @@ export async function getPrescription(
 }
 
 
-/* =========================================================
-   DRIFT MONITORING
-========================================================= */
+// =========================================================
+// DRIFT MONITORING
+// =========================================================
 
 export async function checkDrift(data) {
   return request("/drift", {
     method: "POST",
     body: JSON.stringify({
-      data: data,
+      data,
     }),
   });
 }
 
-
-/* =========================================================
-   DEFAULT EXPORT
-========================================================= */
 
 export default API_URL;

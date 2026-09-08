@@ -4,9 +4,14 @@ from functools import lru_cache
 import joblib
 import numpy as np
 import pandas as pd
+
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from econml.dml import CausalForestDML
 
+
+# =========================================================
+# PATHS
+# =========================================================
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +36,10 @@ ENCODER_PATH = os.path.join(
 )
 
 
+# =========================================================
+# FEATURES
+# =========================================================
+
 X_FEATURES = [
     "age",
     "income",
@@ -40,26 +49,31 @@ X_FEATURES = [
     "avg_basket_size",
 ]
 
-
-RAW_REQUIRED_COLUMNS = X_FEATURES + [
+RAW_REQUIRED_COLUMNS = [
     "customer_id",
+    *X_FEATURES,
     "discount",
     "purchase",
     "channel",
 ]
 
 
+# =========================================================
+# TRAINING DATA PREPARATION
+# =========================================================
+
 def _prepare_training_data(df):
 
-    required = X_FEATURES + [
+    required_columns = [
+        *X_FEATURES,
         "discount",
         "purchase",
-        "channel_online"
+        "channel_online",
     ]
 
     missing = [
         col
-        for col in required
+        for col in required_columns
         if col not in df.columns
     ]
 
@@ -76,16 +90,27 @@ def _prepare_training_data(df):
         df["discount"] > 0
     ).astype(int)
 
-    Y = df["purchase"]
+    Y = pd.to_numeric(
+        df["purchase"],
+        errors="coerce"
+    )
+
+    if Y.isna().any():
+        raise ValueError(
+            "Training outcome 'purchase' contains invalid values."
+        )
 
     return X, W, T, Y
 
+
+# =========================================================
+# LOAD / TRAIN CAUSAL MODEL
+# =========================================================
 
 @lru_cache(maxsize=1)
 def load_causal_model():
 
     if not os.path.exists(DATA_PATH):
-
         raise FileNotFoundError(
             f"DML training data not found: {DATA_PATH}"
         )
@@ -96,12 +121,14 @@ def load_causal_model():
 
     model_y = RandomForestRegressor(
         n_estimators=200,
-        random_state=42
+        random_state=42,
+        n_jobs=-1
     )
 
     model_t = RandomForestClassifier(
         n_estimators=200,
-        random_state=42
+        random_state=42,
+        n_jobs=-1
     )
 
     model = CausalForestDML(
@@ -121,17 +148,19 @@ def load_causal_model():
     return model
 
 
+# =========================================================
+# LOAD PREPROCESSORS
+# =========================================================
+
 @lru_cache(maxsize=1)
 def load_preprocessors():
 
     if not os.path.exists(SCALER_PATH):
-
         raise FileNotFoundError(
             f"Feature scaler not found: {SCALER_PATH}"
         )
 
     if not os.path.exists(ENCODER_PATH):
-
         raise FileNotFoundError(
             f"Channel encoder not found: {ENCODER_PATH}"
         )
@@ -147,6 +176,10 @@ def load_preprocessors():
     return scaler, encoder
 
 
+# =========================================================
+# CUSTOMER FEATURE PREPARATION
+# =========================================================
+
 def prepare_customer_features(customers):
 
     df = pd.DataFrame(customers)
@@ -158,7 +191,6 @@ def prepare_customer_features(customers):
     ]
 
     if missing:
-
         raise ValueError(
             f"Missing required columns: {missing}"
         )
@@ -181,12 +213,15 @@ def prepare_customer_features(customers):
         )
 
         raise ValueError(
-            f"Invalid numeric values in columns: "
+            "Invalid numeric values in columns: "
             f"{invalid_columns}"
         )
 
     scaler, _ = load_preprocessors()
 
+    # IMPORTANT:
+    # The CausalForest was trained using the standardized
+    # features from dml_ready_data.csv.
     X_scaled = scaler.transform(
         X_raw
     )
@@ -199,6 +234,10 @@ def prepare_customer_features(customers):
 
     return X
 
+
+# =========================================================
+# ITE PREDICTION
+# =========================================================
 
 def predict_ite(customers):
 
@@ -216,9 +255,18 @@ def predict_ite(customers):
     return ite.tolist()
 
 
+# =========================================================
+# COMPLETE DATASET ANALYSIS
+# =========================================================
+
 def analyze_dataset(rows):
 
     df = pd.DataFrame(rows)
+
+    if df.empty:
+        raise ValueError(
+            "Dataset contains no rows."
+        )
 
     missing = [
         col
@@ -227,30 +275,15 @@ def analyze_dataset(rows):
     ]
 
     if missing:
-
         raise ValueError(
             f"Dataset missing required columns: {missing}"
         )
 
-    if df.empty:
-
-        raise ValueError(
-            "Dataset contains no rows."
-        )
-
-    if df["customer_id"].isna().any():
-
-        raise ValueError(
-            "customer_id contains missing values."
-        )
-
-    if df["customer_id"].duplicated().any():
-
-        raise ValueError(
-            "customer_id must be unique for each uploaded row."
-        )
-
     clean = df.copy()
+
+    # -----------------------------------------------------
+    # CUSTOMER ID
+    # -----------------------------------------------------
 
     clean["customer_id"] = pd.to_numeric(
         clean["customer_id"],
@@ -258,15 +291,26 @@ def analyze_dataset(rows):
     )
 
     if clean["customer_id"].isna().any():
-
         raise ValueError(
             "customer_id must contain numeric values."
         )
 
-    for col in X_FEATURES + [
+    if clean["customer_id"].duplicated().any():
+        raise ValueError(
+            "customer_id must be unique for each uploaded row."
+        )
+
+    # -----------------------------------------------------
+    # NUMERIC COLUMNS
+    # -----------------------------------------------------
+
+    numeric_columns = [
+        *X_FEATURES,
         "discount",
-        "purchase"
-    ]:
+        "purchase",
+    ]
+
+    for col in numeric_columns:
 
         clean[col] = pd.to_numeric(
             clean[col],
@@ -279,6 +323,10 @@ def analyze_dataset(rows):
                 f"Column '{col}' contains invalid numeric values."
             )
 
+    # -----------------------------------------------------
+    # CHANNEL
+    # -----------------------------------------------------
+
     clean["channel"] = (
         clean["channel"]
         .astype(str)
@@ -287,7 +335,7 @@ def analyze_dataset(rows):
 
     allowed_channels = {
         "in_store",
-        "online"
+        "online",
     }
 
     invalid_channels = sorted(
@@ -303,6 +351,10 @@ def analyze_dataset(rows):
             "Allowed values are: in_store, online."
         )
 
+    # -----------------------------------------------------
+    # TREATMENT
+    # -----------------------------------------------------
+
     T = (
         clean["discount"] > 0
     ).astype(int)
@@ -312,8 +364,12 @@ def analyze_dataset(rows):
         raise ValueError(
             "Uploaded data must contain both treated "
             "(discount > 0) and control "
-            "(discount = 0) customers for Qini analysis."
+            "(discount = 0) customers."
         )
+
+    # -----------------------------------------------------
+    # ITE
+    # -----------------------------------------------------
 
     ite = np.asarray(
         predict_ite(
@@ -324,18 +380,27 @@ def analyze_dataset(rows):
         dtype=float
     )
 
+    if len(ite) != len(clean):
+        raise ValueError(
+            "ITE prediction count does not match dataset rows."
+        )
+
     clean["treatment"] = T
 
     clean["ITE"] = ite
 
+    # -----------------------------------------------------
+    # SEGMENTATION
+    # -----------------------------------------------------
+
     clean["segment"] = np.select(
         [
             clean["ITE"] > 0.10,
-            clean["ITE"] > 0
+            clean["ITE"] > 0,
         ],
         [
             "Highly Persuadable",
-            "Persuadable"
+            "Persuadable",
         ],
         default="Not Persuadable"
     )

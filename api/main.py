@@ -5,42 +5,39 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from fastapi import (
-    FastAPI,
-    HTTPException
-)
-
-from fastapi.middleware.cors import (
-    CORSMiddleware
-)
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.causal_engine import (
     analyze_dataset,
-    predict_ite
+    predict_ite,
 )
 
 from api.optimization_service import (
-    DATASET_PATH,
     DEFAULT_BUDGET,
-    optimize
+    optimize,
 )
 
 from api.prescription_service import (
     get_optimization_summary,
-    get_prescription
+    get_prescription,
 )
 
 from api.schemas import (
     BudgetRequest,
     DatasetUploadRequest,
     DriftRequest,
-    PredictionRequest
+    PredictionRequest,
 )
 
 from monitoring.drift_detector import (
-    check_drift
+    check_drift,
 )
 
+
+# =========================================================
+# BASE PATHS
+# =========================================================
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -48,43 +45,67 @@ BASE_DIR = os.path.dirname(
     )
 )
 
-ANALYSIS_PATH = os.path.join(
+
+DATA_DIR = os.path.join(
     BASE_DIR,
-    "data",
+    "data"
+)
+
+
+# Uploaded runtime dataset
+DATASET_PATH = os.path.join(
+    DATA_DIR,
+    "runtime_uploaded_dataset.csv"
+)
+
+
+# Runtime causal analysis
+ANALYSIS_PATH = os.path.join(
+    DATA_DIR,
     "runtime_causal_analysis.json"
 )
 
+
+# Runtime dataset metadata
 DATASET_META_PATH = os.path.join(
-    BASE_DIR,
-    "data",
+    DATA_DIR,
     "runtime_dataset_meta.json"
 )
 
+
+# Runtime budget
 BUDGET_PATH = os.path.join(
-    BASE_DIR,
-    "data",
+    DATA_DIR,
     "runtime_budget.json"
 )
 
 
+# =========================================================
+# FASTAPI
+# =========================================================
+
 app = FastAPI(
     title="EconoCausal API",
-    version="1.0.0"
+    version="1.0.0",
 )
 
+
+# =========================================================
+# CORS
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
-
     allow_origins=["*"],
-
     allow_credentials=True,
-
     allow_methods=["*"],
-
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
+
+# =========================================================
+# JSON HELPERS
+# =========================================================
 
 def _save_json(
     path,
@@ -114,7 +135,6 @@ def _load_json(path):
     if not os.path.exists(
         path
     ):
-
         return None
 
     with open(
@@ -125,6 +145,10 @@ def _load_json(path):
 
         return json.load(handle)
 
+
+# =========================================================
+# QINI
+# =========================================================
 
 def _compute_qini(
     df,
@@ -143,17 +167,13 @@ def _compute_qini(
 
     treated_total = int(
         (
-            ranked[
-                "treatment"
-            ] > 0
+            ranked["treatment"] > 0
         ).sum()
     )
 
     control_total = int(
         (
-            ranked[
-                "treatment"
-            ] == 0
+            ranked["treatment"] == 0
         ).sum()
     )
 
@@ -225,10 +245,7 @@ def _compute_qini(
         .tolist()
     )
 
-    # Same definition as the Week 2
-    # causal_analysis.ipynb:
-    # mean ITE within each decile.
-
+    # Same definition used by the Week 2 notebook.
     ranked["decile"] = pd.qcut(
         ranked.index,
         10,
@@ -243,49 +260,47 @@ def _compute_qini(
     )
 
     uplift_by_decile = {
-        str(int(index)):
-            float(value)
-
+        str(int(index)): float(value)
         for index, value
         in uplift_curve.items()
     }
 
     return {
-
-        "fractions":
-            fractions,
-
-        "qini_values":
-            qini_values,
-
-        "random_baseline":
-            random_baseline,
-
-        "uplift_by_decile":
-            uplift_by_decile,
-
-        "customers":
-            n
+        "fractions": fractions,
+        "qini_values": qini_values,
+        "random_baseline": random_baseline,
+        "uplift_by_decile": uplift_by_decile,
+        "customers": n,
     }
 
+
+# =========================================================
+# HOME
+# =========================================================
 
 @app.get("/")
 def home():
 
     return {
-        "message":
-            "EconoCausal API is running"
+        "message": "EconoCausal API is running"
     }
 
+
+# =========================================================
+# HEALTH
+# =========================================================
 
 @app.get("/health")
 def health():
 
     return {
-        "status":
-            "healthy"
+        "status": "healthy"
     }
 
+
+# =========================================================
+# PREDICT ITE
+# =========================================================
 
 @app.post("/predict")
 def predict(
@@ -305,26 +320,16 @@ def predict(
         )
 
         return {
-
-            "status":
-                "success",
-
-            "customers":
-                len(customers),
-
+            "status": "success",
+            "customers": len(customers),
             "predictions": [
-
                 {
-                    "customer_index":
-                        i,
-
-                    "ite":
-                        value
+                    "customer_index": i,
+                    "ite": value,
                 }
-
                 for i, value
                 in enumerate(ite)
-            ]
+            ],
         }
 
     except ValueError as exc:
@@ -338,11 +343,13 @@ def predict(
 
         raise HTTPException(
             status_code=500,
-            detail=
-                f"Prediction failed: "
-                f"{str(exc)}"
+            detail=f"Prediction failed: {str(exc)}"
         )
 
+
+# =========================================================
+# DATASET UPLOAD
+# =========================================================
 
 @app.post("/dataset/upload")
 def upload_dataset(
@@ -356,20 +363,16 @@ def upload_dataset(
         )
 
         os.makedirs(
-            os.path.dirname(
-                DATASET_PATH
-            ),
+            DATA_DIR,
             exist_ok=True
         )
 
-        # Store the uploaded raw
-        # customer dataset.
-
+        # Save original uploaded dataset.
         analyzed.drop(
             columns=[
                 "treatment",
                 "ITE",
-                "segment"
+                "segment",
             ],
             errors="ignore"
         ).to_csv(
@@ -377,59 +380,44 @@ def upload_dataset(
             index=False
         )
 
+        # Calculate live Qini.
         qini = _compute_qini(
             analyzed
         )
 
         analysis = {
+            "status": "success",
+            "file_name": request.file_name,
+            "rows": int(len(analyzed)),
+            "columns": analyzed.columns.tolist(),
 
-            "status":
-                "success",
+            "positive_ite": int(
+                (
+                    analyzed["ITE"] > 0
+                ).sum()
+            ),
 
-            "file_name":
-                request.file_name,
+            "negative_ite": int(
+                (
+                    analyzed["ITE"] < 0
+                ).sum()
+            ),
 
-            "rows":
-                int(len(analyzed)),
+            "mean_ite": float(
+                analyzed["ITE"].mean()
+            ),
 
-            "columns":
-                analyzed.columns.tolist(),
+            "ate": float(
+                analyzed["ITE"].mean()
+            ),
 
-            "positive_ite":
-                int(
-                    (
-                        analyzed["ITE"]
-                        > 0
-                    ).sum()
-                ),
+            "qini": qini,
 
-            "negative_ite":
-                int(
-                    (
-                        analyzed["ITE"]
-                        < 0
-                    ).sum()
-                ),
-
-            "mean_ite":
-                float(
-                    analyzed["ITE"].mean()
-                ),
-
-            "ate":
-                float(
-                    analyzed["ITE"].mean()
-                ),
-
-            "qini":
-                qini,
-
-            "segment_counts":
-                analyzed[
-                    "segment"
-                ]
+            "segment_counts": (
+                analyzed["segment"]
                 .value_counts()
                 .to_dict()
+            ),
         }
 
         _save_json(
@@ -440,17 +428,9 @@ def upload_dataset(
         _save_json(
             DATASET_META_PATH,
             {
-
-                "file_name":
-                    request.file_name,
-
-                "rows":
-                    int(
-                        len(analyzed)
-                    ),
-
-                "columns":
-                    analyzed.columns.tolist()
+                "file_name": request.file_name,
+                "rows": int(len(analyzed)),
+                "columns": analyzed.columns.tolist(),
             }
         )
 
@@ -467,11 +447,13 @@ def upload_dataset(
 
         raise HTTPException(
             status_code=500,
-            detail=
-                f"Dataset analysis failed: "
-                f"{str(exc)}"
+            detail=f"Dataset analysis failed: {str(exc)}"
         )
 
+
+# =========================================================
+# DATASET STATUS
+# =========================================================
 
 @app.get("/dataset/status")
 def dataset_status():
@@ -485,17 +467,15 @@ def dataset_status():
     )
 
     return {
-
-        "uploaded":
-            analysis is not None,
-
-        "dataset":
-            metadata,
-
-        "analysis":
-            analysis
+        "uploaded": analysis is not None,
+        "dataset": metadata,
+        "analysis": analysis,
     }
 
+
+# =========================================================
+# LIVE INSIGHTS
+# =========================================================
 
 @app.get("/insights")
 def insights():
@@ -508,37 +488,24 @@ def insights():
 
         raise HTTPException(
             status_code=404,
-            detail=
-                "No uploaded dataset has "
-                "been analyzed yet."
+            detail="No uploaded dataset has been analyzed yet."
         )
 
     return {
-
         **analysis["qini"],
-
-        "file_name":
-            analysis["file_name"],
-
-        "rows":
-            analysis["rows"],
-
-        "positive_ite":
-            analysis["positive_ite"],
-
-        "negative_ite":
-            analysis["negative_ite"],
-
-        "mean_ite":
-            analysis["mean_ite"],
-
-        "ate":
-            analysis["ate"],
-
-        "segment_counts":
-            analysis["segment_counts"]
+        "file_name": analysis["file_name"],
+        "rows": analysis["rows"],
+        "positive_ite": analysis["positive_ite"],
+        "negative_ite": analysis["negative_ite"],
+        "mean_ite": analysis["mean_ite"],
+        "ate": analysis["ate"],
+        "segment_counts": analysis["segment_counts"],
     }
 
+
+# =========================================================
+# GET CURRENT BUDGET
+# =========================================================
 
 @app.get("/budget")
 def get_budget():
@@ -550,16 +517,16 @@ def get_budget():
     if budget is None:
 
         return {
-
-            "total_budget":
-                DEFAULT_BUDGET,
-
-            "max_customers":
-                None
+            "total_budget": DEFAULT_BUDGET,
+            "max_customers": None,
         }
 
     return budget
 
+
+# =========================================================
+# RUN OPTIMIZATION
+# =========================================================
 
 @app.post("/optimize")
 def run_optimization(
@@ -576,25 +543,15 @@ def run_optimization(
         _save_json(
             BUDGET_PATH,
             {
-
-                "total_budget":
-                    request.total_budget,
-
-                "max_customers":
-                    request.max_customers,
-
-                "updated_at":
-                    datetime.now().isoformat()
+                "total_budget": request.total_budget,
+                "max_customers": request.max_customers,
+                "updated_at": datetime.now().isoformat(),
             }
         )
 
         return {
-
-            "status":
-                "success",
-
-            "optimization":
-                summary
+            "status": "success",
+            "optimization": summary,
         }
 
     except ValueError as exc:
@@ -608,11 +565,13 @@ def run_optimization(
 
         raise HTTPException(
             status_code=500,
-            detail=
-                f"Optimization failed: "
-                f"{str(exc)}"
+            detail=f"Optimization failed: {str(exc)}"
         )
 
+
+# =========================================================
+# PRESCRIPTION
+# =========================================================
 
 @app.get("/prescription")
 def prescription(
@@ -625,23 +584,13 @@ def prescription(
             customer_id
         )
 
-        summary = (
-            get_optimization_summary()
-        )
+        summary = get_optimization_summary()
 
         return {
-
-            "status":
-                "success",
-
-            "count":
-                len(result),
-
-            "prescriptions":
-                result,
-
-            "optimization":
-                summary
+            "status": "success",
+            "count": len(result),
+            "prescriptions": result,
+            "optimization": summary,
         }
 
     except ValueError as exc:
@@ -662,11 +611,16 @@ def prescription(
 
         raise HTTPException(
             status_code=500,
-            detail=
-                f"Prescription retrieval failed: "
+            detail=(
+                "Prescription retrieval failed: "
                 f"{str(exc)}"
+            )
         )
 
+
+# =========================================================
+# DRIFT DETECTION
+# =========================================================
 
 @app.post("/drift")
 def detect_drift(
@@ -680,7 +634,6 @@ def detect_drift(
         )
 
         required_columns = [
-
             "age",
             "income",
             "previous_purchases",
@@ -689,25 +642,23 @@ def detect_drift(
             "discount",
             "campaign_response",
             "channel",
-            "purchase"
-
+            "purchase",
         ]
 
         missing = [
             column
-            for column
-            in required_columns
-            if column
-            not in new_data.columns
+            for column in required_columns
+            if column not in new_data.columns
         ]
 
         if missing:
 
             raise HTTPException(
                 status_code=400,
-                detail=
-                    f"Missing required drift "
+                detail=(
+                    "Missing required drift "
                     f"columns: {missing}"
+                )
             )
 
         result = check_drift(
@@ -715,12 +666,8 @@ def detect_drift(
         )
 
         return {
-
-            "status":
-                "success",
-
-            "drift":
-                result
+            "status": "success",
+            "drift": result,
         }
 
     except HTTPException:
@@ -738,7 +685,8 @@ def detect_drift(
 
         raise HTTPException(
             status_code=500,
-            detail=
-                f"Drift detection failed: "
+            detail=(
+                "Drift detection failed: "
                 f"{str(exc)}"
+            )
         )

@@ -3,6 +3,10 @@ from typing import Any, Dict, List
 from pydantic import BaseModel, Field
 
 
+# =========================================================
+# CUSTOMER PREDICTION
+# =========================================================
+
 class CustomerInput(BaseModel):
 
     age: float
@@ -22,14 +26,24 @@ class PredictionRequest(BaseModel):
     )
 
 
-class DriftRequest(BaseModel):
+class PredictionResult(BaseModel):
 
-    data: List[
-        Dict[str, Any]
-    ] = Field(
-        min_length=1
-    )
+    customer_index: int
+    ite: float
 
+
+class PredictionResponse(BaseModel):
+
+    status: str
+    customers: int
+    predictions: List[
+        PredictionResult
+    ]
+
+
+# =========================================================
+# DATASET UPLOAD
+# =========================================================
 
 class DatasetUploadRequest(BaseModel):
 
@@ -44,6 +58,10 @@ class DatasetUploadRequest(BaseModel):
     )
 
 
+# =========================================================
+# BUDGET / OPTIMIZATION
+# =========================================================
+
 class BudgetRequest(BaseModel):
 
     total_budget: float = Field(
@@ -56,16 +74,32 @@ class BudgetRequest(BaseModel):
     )
 
 
-class PredictionResult(BaseModel):
+# =========================================================
+# DRIFT
+# =========================================================
 
-    customer_index: int
-    ite: float
+class DriftRequest(BaseModel):
+
+    data: List[
+        Dict[str, Any]
+    ] = Field(
+        min_length=1
+    )
 
 
-class PredictionResponse(BaseModel):
+# =========================================================
+# PRESCRIPTION
+# =========================================================
 
-    status: str
-    customers: int
-    predictions: List[
-        PredictionResult
-    ]
+class PrescriptionRequest(BaseModel):
+
+    customer_id: int | None = None
+
+
+class PrescriptionResult(BaseModel):
+
+    customer_id: int
+    optimal_discount: float
+    discount_fraction: float
+    predicted_revenue: float
+    marketing_cost: float

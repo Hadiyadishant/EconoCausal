@@ -10,11 +10,13 @@ BASE_DIR = os.path.dirname(
     )
 )
 
+
 PRESCRIPTION_PATH = os.path.join(
     BASE_DIR,
     "data",
     "optimized_discount_assignments.csv"
 )
+
 
 SUMMARY_PATH = os.path.join(
     BASE_DIR,
@@ -23,12 +25,15 @@ SUMMARY_PATH = os.path.join(
 )
 
 
+# =========================================================
+# LOAD PRESCRIPTION
+# =========================================================
+
 def load_prescription():
 
     if not os.path.exists(
         PRESCRIPTION_PATH
     ):
-
         raise FileNotFoundError(
             "Optimized prescription file not found. "
             "Set a budget and run optimization first."
@@ -43,7 +48,7 @@ def load_prescription():
         "optimal_discount",
         "discount_fraction",
         "predicted_revenue",
-        "marketing_cost"
+        "marketing_cost",
     ]
 
     missing = [
@@ -55,19 +60,21 @@ def load_prescription():
     if missing:
 
         raise ValueError(
-            f"Prescription file missing columns: "
-            f"{missing}"
+            f"Prescription file missing columns: {missing}"
         )
 
     return df
 
+
+# =========================================================
+# LOAD OPTIMIZATION SUMMARY
+# =========================================================
 
 def get_optimization_summary():
 
     if not os.path.exists(
         SUMMARY_PATH
     ):
-
         return None
 
     with open(
@@ -79,6 +86,10 @@ def get_optimization_summary():
         return json.load(handle)
 
 
+# =========================================================
+# GET PRESCRIPTION
+# =========================================================
+
 def get_prescription(
     customer_id=None
 ):
@@ -88,8 +99,7 @@ def get_prescription(
     if customer_id is not None:
 
         df = df[
-            df["customer_id"]
-            == customer_id
+            df["customer_id"] == customer_id
         ]
 
     return df.to_dict(

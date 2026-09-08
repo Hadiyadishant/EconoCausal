@@ -1,277 +1,188 @@
-import {
-  useEffect,
-  useState
-} from "react";
-
-import {
-  useNavigate
-} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   getBudget,
   getDatasetStatus,
   getInsights,
-  getPrescription
+  getPrescription,
 } from "../services/api";
 
-import {
-  generateInsights
-} from "../services/insightsEngine";
+import { generateInsights } from "../services/insightsEngine";
 
 import InsightCard from "./InsightCard";
 
 import "./Dashboard.css";
 
 
-function summarizePrescriptions(
-  prescriptions
-) {
+function summarizePrescriptions(prescriptions) {
+  const customers = prescriptions.length;
 
-  const customers =
-    prescriptions.length;
+  const allocated = prescriptions.filter(
+    (row) => Number(row.optimal_discount) > 0
+  ).length;
 
-  const allocated =
-    prescriptions.filter(
-      (row) =>
-        Number(
-          row.optimal_discount
-        ) > 0
-    ).length;
+  const revenue = prescriptions.reduce(
+    (sum, row) =>
+      sum + Number(row.predicted_revenue || 0),
+    0
+  );
 
-  const revenue =
-    prescriptions.reduce(
-      (sum, row) =>
-        sum +
-        Number(
-          row.predicted_revenue
-          || 0
-        ),
-      0
-    );
-
-  const cost =
-    prescriptions.reduce(
-      (sum, row) =>
-        sum +
-        Number(
-          row.marketing_cost
-          || 0
-        ),
-      0
-    );
+  const cost = prescriptions.reduce(
+    (sum, row) =>
+      sum + Number(row.marketing_cost || 0),
+    0
+  );
 
   return {
-
     customers,
-
-    customers_allocated:
-      allocated,
-
-    predicted_revenue:
-      revenue,
-
-    marketing_cost:
-      cost
-
+    customers_allocated: allocated,
+    predicted_revenue: revenue,
+    marketing_cost: cost,
   };
-
 }
 
 
 function Dashboard() {
+  const navigate = useNavigate();
 
-  const navigate =
-    useNavigate();
+  const [qiniData, setQiniData] = useState(null);
+  const [prescriptionData, setPrescriptionData] = useState(null);
+  const [budgetData, setBudgetData] = useState(null);
+  const [datasetStatus, setDatasetStatus] = useState(null);
 
-
-  const [
-    qiniData,
-    setQiniData
-  ] = useState(null);
-
-
-  const [
-    prescriptionData,
-    setPrescriptionData
-  ] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadIssues, setLoadIssues] = useState([]);
 
 
-  const [
-    budgetData,
-    setBudgetData
-  ] = useState(null);
+  const loadDashboard = async () => {
+    setLoading(true);
+
+    const issues = [];
 
 
-  const [
-    datasetStatus,
-    setDatasetStatus
-  ] = useState(null);
+    // =====================================================
+    // DATASET STATUS
+    // =====================================================
 
+    try {
+      const status = await getDatasetStatus();
 
-  const [
-    loading,
-    setLoading
-  ] = useState(true);
+      setDatasetStatus(status);
+    } catch {
+      setDatasetStatus(null);
 
-
-  const [
-    loadIssues,
-    setLoadIssues
-  ] = useState([]);
-
-
-  const loadDashboard =
-    async () => {
-
-      setLoading(true);
-
-      const issues = [];
-
-
-      try {
-
-        const status =
-          await getDatasetStatus();
-
-        setDatasetStatus(
-          status
-        );
-
-      } catch {
-
-        issues.push(
-          "Dataset status could not be loaded."
-        );
-
-      }
-
-
-      try {
-
-        const insights =
-          await getInsights();
-
-        setQiniData(
-          insights
-        );
-
-      } catch (error) {
-
-        setQiniData(null);
-
-        if (
-          !error.message.includes(
-            "No uploaded dataset"
-          )
-        ) {
-
-          issues.push(
-            "Live causal insights could not be loaded."
-          );
-
-        }
-
-      }
-
-
-      try {
-
-        const prescription =
-          await getPrescription();
-
-        setPrescriptionData(
-          summarizePrescriptions(
-            prescription.prescriptions
-            || []
-          )
-        );
-
-      } catch (error) {
-
-        setPrescriptionData(
-          null
-        );
-
-        if (
-          !error.message.includes(
-            "Prescription file not found"
-          )
-        ) {
-
-          issues.push(
-            "Prescription results could not be loaded."
-          );
-
-        }
-
-      }
-
-
-      try {
-
-        setBudgetData(
-          await getBudget()
-        );
-
-      } catch {
-
-        setBudgetData(
-          null
-        );
-
-        issues.push(
-          "Budget settings could not be loaded."
-        );
-
-      }
-
-
-      setLoadIssues(
-        issues
+      issues.push(
+        "Dataset status could not be loaded."
       );
+    }
 
-      setLoading(false);
 
-    };
+    // =====================================================
+    // LIVE CAUSAL INSIGHTS
+    // =====================================================
+
+    try {
+      const insights = await getInsights();
+
+      setQiniData(insights);
+    } catch (error) {
+      setQiniData(null);
+
+      if (
+        !error.message.includes(
+          "No uploaded dataset"
+        )
+      ) {
+        issues.push(
+          "Live causal insights could not be loaded."
+        );
+      }
+    }
+
+
+    // =====================================================
+    // LIVE PRESCRIPTION
+    // =====================================================
+
+    try {
+      const prescription = await getPrescription();
+
+      setPrescriptionData(
+        summarizePrescriptions(
+          prescription.prescriptions || []
+        )
+      );
+    } catch (error) {
+      setPrescriptionData(null);
+
+      if (
+        !error.message.includes(
+          "Prescription file not found"
+        )
+      ) {
+        issues.push(
+          "Prescription results could not be loaded."
+        );
+      }
+    }
+
+
+    // =====================================================
+    // CURRENT BUDGET
+    // =====================================================
+
+    try {
+      const budget = await getBudget();
+
+      setBudgetData(budget);
+    } catch {
+      setBudgetData(null);
+
+      issues.push(
+        "Budget settings could not be loaded."
+      );
+    }
+
+
+    setLoadIssues(issues);
+    setLoading(false);
+  };
 
 
   useEffect(() => {
-
     loadDashboard();
-
   }, []);
 
 
-  const insights =
-    loading
-
-      ? []
-
-      : generateInsights({
-
-          qiniData,
-
-          prescriptionData,
-
-          budgetData
-
-        });
+  const insights = loading
+    ? []
+    : generateInsights({
+        qiniData,
+        prescriptionData,
+        budgetData,
+      });
 
 
-  const hasAnyResults =
-    Boolean(
-      qiniData
-      ||
-      prescriptionData
-    );
+  const hasAnyResults = Boolean(
+    qiniData || prescriptionData
+  );
+
+
+  const budgetRemaining =
+    budgetData && prescriptionData
+      ? Number(budgetData.total_budget) -
+        Number(prescriptionData.marketing_cost)
+      : null;
 
 
   return (
-
     <section className="dashboard-page">
-
       <div className="dashboard-container">
 
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div className="dashboard-header">
 
@@ -291,9 +202,7 @@ function Dashboard() {
 
           <button
             className="secondary-button"
-            onClick={
-              loadDashboard
-            }
+            onClick={loadDashboard}
           >
             ↻ Refresh Dashboard
           </button>
@@ -301,38 +210,32 @@ function Dashboard() {
         </div>
 
 
-        {datasetStatus?.uploaded && (
+        {/* =================================================
+            CURRENT DATASET
+        ================================================= */}
 
+        {datasetStatus?.uploaded && (
           <div className="dashboard-issues">
 
             <p>
-
               ✓ Current dataset:{" "}
-
               <strong>
-                {
-                  datasetStatus
-                    .dataset
-                    ?.file_name
-                }
+                {datasetStatus.dataset?.file_name}
               </strong>{" "}
-
               (
               {Number(
-                datasetStatus
-                  .dataset
-                  ?.rows
-                || 0
+                datasetStatus.dataset?.rows || 0
               ).toLocaleString()}
-
               {" "}rows)
-
             </p>
 
           </div>
-
         )}
 
+
+        {/* =================================================
+            NATURAL LANGUAGE INSIGHTS
+        ================================================= */}
 
         <div className="insights-section">
 
@@ -352,15 +255,10 @@ function Dashboard() {
 
 
           {loading ? (
-
             <div className="dashboard-loading-card">
-
               Loading live results...
-
             </div>
-
           ) : !hasAnyResults ? (
-
             <div className="dashboard-empty-card">
 
               <strong>
@@ -383,54 +281,42 @@ function Dashboard() {
               </button>
 
             </div>
-
           ) : (
-
             <div className="insight-grid">
 
-              {insights.map(
-                (insight) => (
-
-                  <InsightCard
-                    key={
-                      insight.id
-                    }
-                    {...insight}
-                  />
-
-                )
-              )}
+              {insights.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  {...insight}
+                />
+              ))}
 
             </div>
-
           )}
 
 
           {loadIssues.length > 0 && (
-
             <div className="dashboard-issues">
 
-              {loadIssues.map(
-                (issue) => (
-
-                  <p
-                    key={issue}
-                  >
-                    ⚠ {issue}
-                  </p>
-
-                )
-              )}
+              {loadIssues.map((issue) => (
+                <p key={issue}>
+                  ⚠ {issue}
+                </p>
+              ))}
 
             </div>
-
           )}
 
         </div>
 
 
+        {/* =================================================
+            NAVIGATION CARDS
+        ================================================= */}
+
         <div className="dashboard-grid">
 
+          {/* Upload */}
 
           <button
             className="dashboard-card"
@@ -459,6 +345,8 @@ function Dashboard() {
           </button>
 
 
+          {/* Budget */}
+
           <button
             className="dashboard-card"
             onClick={() =>
@@ -485,6 +373,8 @@ function Dashboard() {
 
           </button>
 
+
+          {/* Insights */}
 
           <button
             className="dashboard-card"
@@ -513,6 +403,8 @@ function Dashboard() {
           </button>
 
 
+          {/* Prescription */}
+
           <button
             className="dashboard-card"
             onClick={() =>
@@ -540,6 +432,8 @@ function Dashboard() {
           </button>
 
 
+          {/* Monitoring */}
+
           <button
             className="dashboard-card"
             onClick={() =>
@@ -566,15 +460,72 @@ function Dashboard() {
 
           </button>
 
+        </div>
+
+
+        {/* =================================================
+            LIVE MODEL SNAPSHOT
+        ================================================= */}
+
+        <div className="dashboard-info">
+
+          <div>
+            <span>
+              CUSTOMERS ALLOCATED
+            </span>
+
+            <strong>
+              {prescriptionData
+                ? Number(
+                    prescriptionData.customers_allocated
+                  ).toLocaleString()
+                : "—"}
+            </strong>
+          </div>
+
+
+          <div>
+            <span>
+              PREDICTED REVENUE
+            </span>
+
+            <strong>
+              {prescriptionData
+                ? `₹${Number(
+                    prescriptionData.predicted_revenue
+                  ).toLocaleString(
+                    "en-IN",
+                    {
+                      maximumFractionDigits: 0,
+                    }
+                  )}`
+                : "—"}
+            </strong>
+          </div>
+
+
+          <div>
+            <span>
+              BUDGET REMAINING
+            </span>
+
+            <strong>
+              {budgetRemaining !== null
+                ? `₹${budgetRemaining.toLocaleString(
+                    "en-IN",
+                    {
+                      maximumFractionDigits: 0,
+                    }
+                  )}`
+                : "—"}
+            </strong>
+          </div>
 
         </div>
 
       </div>
-
     </section>
-
   );
-
 }
 
 
